@@ -19,7 +19,9 @@ WORKDIR /app
 
 RUN useradd --system --create-home --home-dir /app appuser
 COPY --from=build /app/target/*.jar app.jar
-RUN chown appuser:appuser app.jar
+# Le repertoire de travail lui-meme, pas seulement le jar : l'app y cree
+# uploads/ et reports/ au demarrage (FileStorageService, ReportExportService).
+RUN chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8080

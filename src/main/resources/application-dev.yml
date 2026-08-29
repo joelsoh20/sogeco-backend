@@ -1,18 +1,23 @@
 # =====================================================================
 # Profil DEVELOPPEMENT
 #
-# ATTENTION : le fichier .env n'est lu QUE par docker compose.
-# Il n'est PAS charge par Spring Boot lors d'un "mvnw spring-boot:run".
-# Les valeurs ci-dessous sont celles que l'application utilise reellement.
+# "dev" est le profil par defaut (spring.profiles.default dans
+# application.yml) : actif des que SPRING_PROFILES_ACTIVE n'est pas
+# positionne explicitement — y compris dans un conteneur ou sur un
+# hebergeur, si on oublie de le definir. D'ou les placeholders ${...}
+# ci-dessous plutot que des valeurs figees : sans eux, DB_HOST/REDIS_HOST
+# seraient ignores partout sauf en environnement "prod", et le meme
+# oubli reproduirait exactement l'erreur "connection refused" locale
+# (connexion a localhost au lieu de l'hote vise).
 #
-# Le conteneur PostgreSQL est expose sur le port 5433 cote Windows,
-# car un PostgreSQL 18 local occupe deja le port 5432.
+# Ports par defaut : ceux du docker-compose local (PostgreSQL expose
+# sur 5433 cote Windows, un PostgreSQL 18 local occupant deja le 5432).
 # =====================================================================
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5433/sogeco_fleet
-    username: sogeco
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:sogeco_fleet}
+    username: ${DB_USER:sogeco}
     password: ${DB_PASSWORD:Primce2005@}
 
   jpa:
@@ -24,8 +29,8 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:Primce2005@}
 
 logging:

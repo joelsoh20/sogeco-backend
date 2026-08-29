@@ -29,4 +29,9 @@ logging:
     root: INFO
     com.sogeco: INFO
   pattern:
-    console: '{"ts":"%d{ISO8601}","level":"%level","trace":"%X{traceId}","logger":"%logger{36}","msg":"%replace(%msg){"\"","'"'"'"}"}%n'
+    # Bloc litteral : les guillemets du JSON n'ont alors pas besoin
+    # d'echappement YAML — la version precedente (scalaire simple avec
+    # echappements imbriques) n'etait pas un YAML valide et empechait
+    # le demarrage sous ce profil.
+    console: |-
+      {"ts":"%d{ISO8601}","level":"%level","trace":"%X{traceId}","logger":"%logger{36}","msg":"%msg"}%n
