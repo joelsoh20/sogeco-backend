@@ -16,7 +16,12 @@
 
 spring:
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:sogeco_fleet}
+    # sslmode repris d'application.yml : ce profil redefinit l'URL en
+    # entier (le port par defaut differe, 5433 au lieu de 5432), donc
+    # celle d'application.yml — sslmode inclus — ne s'applique jamais
+    # ici. Sans la reprendre explicitement, une base distante exigeant
+    # TLS resterait injoignable en profil dev, sans message clair.
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:sogeco_fleet}?sslmode=${DB_SSLMODE:disable}
     username: ${DB_USER:sogeco}
     password: ${DB_PASSWORD:Primce2005@}
 

@@ -6,7 +6,11 @@ spring:
     default: dev
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:sogeco_fleet}
+    # sslmode a "disable" par defaut : le Postgres local (docker-compose)
+    # n'a pas de certificat. Un hebergeur qui l'exige (Supabase, RDS...)
+    # passe DB_SSLMODE=require sans qu'aucun autre environnement en soit
+    # affecte.
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:sogeco_fleet}?sslmode=${DB_SSLMODE:disable}
     username: ${DB_USER:sogeco}
     password: ${DB_PASSWORD:sogeco_dev_password}
     hikari:
