@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -c \"^GOOGLE_CLIENT_SECRET=$\" .env)",
+      "Bash(docker --version)",
+      "Bash(docker compose *)",
+      "Bash(./mvnw.cmd -q clean compile)",
+      "Bash(timeout 90 ./mvnw.cmd spring-boot:run)",
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Read(//tmp/**)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8080 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess | ForEach-Object { $_; Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,Path,StartTime })"
+    ]
+  }
+}

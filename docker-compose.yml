@@ -1,0 +1,89 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: sogeco-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-sogeco_fleet}
+      POSTGRES_USER: ${DB_USER:-sogeco}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sogeco_dev_password}
+      TZ: Africa/Douala
+    ports:
+      # Port cote Windows. 5433 car un PostgreSQL local occupe deja 5432.
+      - "${DB_PORT_HOST:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Cree la base 'traccar' au tout premier demarrage (volume vide) ;
+      # POSTGRES_DB ne cree que la base de l'application (sogeco_fleet).
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sogeco} -d ${DB_NAME:-sogeco_fleet}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: sogeco-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-sogeco_redis_password}
+    ports:
+      - "${REDIS_PORT_HOST:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  traccar:
+    image: traccar/traccar:latest
+    container_name: sogeco-traccar
+    restart: unless-stopped
+    environment:
+      TZ: Africa/Douala
+    ports:
+      # Interface web et API REST
+      - "8082:8082"
+      # Protocole osmand : application Traccar Client sur telephone
+      - "5055:5055"
+      - "5055:5055/udp"
+      # Protocole gps103 : boitiers GPS103/TK102 et compatibles
+      - "5001:5001"
+      - "5001:5001/udp"
+      # Protocole meiligao : boitiers Meiligao et compatibles
+      - "5005:5005"
+      - "5005:5005/udp"
+      # Protocole h02 : boitiers H02 et compatibles
+      - "5009:5009"
+      - "5009:5009/udp"
+    volumes:
+      - ./traccar/conf:/opt/traccar/conf
+      - traccar_data:/opt/traccar/data
+      - traccar_logs:/opt/traccar/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: sogeco-pgadmin
+    restart: unless-stopped
+    profiles: ["tools"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@sogeco.cm
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  traccar_data:
+  traccar_logs:

@@ -1,0 +1,10 @@
+package com.sogeco.fleet.common.enums;
+
+public enum ReportType {
+    RENTABILITE_CAMIONS,
+    RENTABILITE_MISSIONS,
+    RENTABILITE_CLIENTS,
+    RENTABILITE_CORRIDORS,
+    RENTABILITE_AGENCES,
+    SYNTHESE_MENSUELLE
+}

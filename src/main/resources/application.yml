@@ -1,0 +1,151 @@
+spring:
+  application:
+    name: sogeco-fleet-manager
+
+  profiles:
+    default: dev
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:sogeco_fleet}
+    username: ${DB_USER:sogeco}
+    password: ${DB_PASSWORD:sogeco_dev_password}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 20000
+      pool-name: SogecoHikariPool
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # JAMAIS "update" : Flyway seul fait autorite sur le schema
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+        default_batch_fetch_size: 25
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:sogeco_redis_password}
+      timeout: 2000ms
+
+  # Spring Boot 4 embarque Jackson 3 (package tools.jackson) :
+  # WRITE_DATES_AS_TIMESTAMPS n'existe plus dans SerializationFeature.
+  # Les dates ISO-8601 sont desormais le comportement par defaut.
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      fail-on-empty-beans: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+  # Connexion Google desactivee temporairement (service payant sur Google Cloud).
+  # Pour la reactiver : decommenter et renseigner GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET.
+  # security:
+  #   oauth2:
+  #     client:
+  #       registration:
+  #         google:
+  #           client-id: ${GOOGLE_CLIENT_ID:}
+  #           client-secret: ${GOOGLE_CLIENT_SECRET:}
+  #           scope: openid, profile, email
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+  compression:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+# ---- Parametres applicatifs SOGECO ----
+sogeco:
+  timezone: Africa/Douala
+  currency: XAF
+
+  jwt:
+    secret: ${JWT_SECRET:changez-ce-secret-de-developpement-sogeco-fleet-manager-2026}
+    access-token-minutes: ${JWT_ACCESS_TOKEN_MINUTES:15}
+    refresh-token-days: ${JWT_REFRESH_TOKEN_DAYS:7}
+    issuer: sogeco-fleet-manager
+
+  oauth2:
+    redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:5173/oauth2/callback}
+    allowed-domain: ${GOOGLE_ALLOWED_DOMAIN:}
+  gps:
+    retention-days: 90
+  map:
+    provider: osm
+  cors:
+    allowed-origins: http://localhost:5173
+
+  ors:
+    # Cle gratuite sur openrouteservice.org (2000 requetes/jour, sans carte bancaire).
+    # Vide : l'estimation de mission retombe sur la distance a vol d'oiseau majoree de 20%.
+    api-key: ${ORS_API_KEY:}
+    # api.openrouteservice.org est en cours de depreciation au profit de api.heigit.org
+    # (annonce ORS, avril 2026) : on pointe directement vers la nouvelle URL.
+    # Attention : le chemin "/openrouteservice" est obligatoire (ce n'est pas qu'un
+    # changement de domaine), et SANS barre oblique finale — une barre finale ici
+    # provoque des 405 "Method not allowed" sur toutes les requetes (signale par
+    # plusieurs utilisateurs sur le forum ORS apres la migration).
+    base-url: ${ORS_BASE_URL:https://api.heigit.org/openrouteservice}
+    # driving-hgv : profil poids lourd (restrictions de gabarit/poids prises en compte
+    # par ORS), plus pertinent que driving-car pour une flotte de camions.
+    profile: driving-hgv
+    # Verifie manuellement le 15/08/2026 (curl) : /geocode/search et /geocode/reverse
+    # renvoient 404 sur api.heigit.org (seul /v2/directions y a ete migre) alors qu'ils
+    # repondent 200 sur l'ancien domaine — le geocodage n'a donc PAS suivi la migration.
+    # Base-url separee tant que ce n'est pas corrige cote ORS.
+    geocode-base-url: ${ORS_GEOCODE_BASE_URL:https://api.openrouteservice.org}
+
+  ratelimit:
+    # Fenetre fixe d'une minute, par utilisateur authentifie (par IP a defaut,
+    # ex. tentatives de connexion). Large marge : 11 camions, une dizaine
+    # d'utilisateurs, ce controle vise un script qui boucle, pas le trafic normal.
+    requests-per-minute: ${RATE_LIMIT_PER_MINUTE:120}
+
+logging:
+  level:
+    root: INFO
+    com.sogeco: INFO

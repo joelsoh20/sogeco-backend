@@ -1,0 +1,19 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+springdoc:
+  swagger-ui:
+    enabled: false
+
+sogeco:
+  cors:
+    allowed-origins: http://localhost:5173
+
+logging:
+  level:
+    com.sogeco: DEBUG
+    org.testcontainers: WARN

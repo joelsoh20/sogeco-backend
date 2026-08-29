@@ -1,0 +1,131 @@
+spring:
+  application:
+    name: sogeco-fleet-manager
+
+  profiles:
+    default: dev
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:sogeco_fleet}
+    username: ${DB_USER:sogeco}
+    password: ${DB_PASSWORD:sogeco_dev_password}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 20000
+      pool-name: SogecoHikariPool
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # JAMAIS "update" : Flyway seul fait autorite sur le schema
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+        default_batch_fetch_size: 25
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:sogeco_redis_password}
+      timeout: 2000ms
+
+  # Spring Boot 4 embarque Jackson 3 (package tools.jackson) :
+  # WRITE_DATES_AS_TIMESTAMPS n'existe plus dans SerializationFeature.
+  # Les dates ISO-8601 sont desormais le comportement par defaut.
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      fail-on-empty-beans: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+  # security:
+  #   oauth2:
+  #     client:
+  #       registration:
+  #         google:
+  #           client-id: ${GOOGLE_CLIENT_ID:}
+  #           client-secret: ${GOOGLE_CLIENT_SECRET:}
+  #           scope: openid, profile, email
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+  compression:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+# ---- Parametres applicatifs SOGECO ----
+sogeco:
+  timezone: Africa/Douala
+  currency: XAF
+
+  jwt:
+    # 256 bits minimum. En production : variable d'environnement, jamais le depot.
+    secret: ${JWT_SECRET:changez-ce-secret-de-developpement-sogeco-fleet-manager-2026}
+    access-token-minutes: ${JWT_ACCESS_TOKEN_MINUTES:15}
+    refresh-token-days: ${JWT_REFRESH_TOKEN_DAYS:7}
+    issuer: sogeco-fleet-manager
+
+  oauth2:
+    redirect-uri: ${OAUTH2_REDIRECT_URI:http://localhost:5173/oauth2/callback}
+    allowed-domain: ${GOOGLE_ALLOWED_DOMAIN:}
+  gps:
+    retention-days: 90
+  map:
+    provider: osm
+  cors:
+    allowed-origins: http://localhost:5173
+
+  ratelimit:
+    # Desactive en pratique : les conteneurs Redis de test sont partages entre
+    # toutes les classes heritant d'AbstractIntegrationTest, qui peuvent y
+    # cumuler largement plus de 120 requetes/minute sous la meme identite
+    # sans que ce soit represantatif d'un abus.
+    requests-per-minute: 1000000
+
+logging:
+  level:
+    root: INFO
+    com.sogeco: INFO

@@ -1,0 +1,72 @@
+
+
+.\mvnw.cmd spring-boot:run 
+http://localhost:8080/swagger-ui/index.html#/Systeme/ping
+Le compte administrateur initial est  / Sogeco@2026
+48 permissions sont définies, réparties en 15 modules.
+.\mvnw.cmd clean compile
+docker compose up -d
+docker compose psadmin@sogeco.cm
+docker compose down -v      # le -v détruit le volume, donc les données
+docker run --rm -v fleet-manager_traccar_logs:/logs alpine sh -c "tail -15 /logs/tracker-server.log" 
+
+COMMANDE pour me reconnecter lorsque mon jeton expire
+
+$r = Invoke-RestMethod -Uri http://localhost:8080/api/v1/auth/login -Method Post -ContentType "application/json" -Body '{"email":"admin@sogeco.cm","password":"Sogeco@2026"}'
+
+
+common.security.JwtProperties  : 
+ATTENTION : le secret JWT est celui livre par defaut.
+Acceptable en developpement, a remplacer imperativement
+par la variable d'environnement JWT_SECRET en production.
+
+
+
+Solutions
+Renseigner de vrais identifiants Google OAuth dans .env (Google Cloud Console → Credentials), si tu veux activer la connexion Google maintenant.
+Retirer temporairement le bloc google de application.yml tant que ces identifiants ne sont pas prêts — c'est le fix le plus simple pour débloquer le démarrage immédiatement, et ça correspond à l'intention initiale du code.
+Veux-tu que je retire ce bloc oauth2.client.registration.google d'application.yml maintenant pour débloquer le démarrage, ou préfères-tu fournir de vrais identifiants Google ?
+
+je prefere les identifiants google comment les obtenir ?
+Voici la marche à suivre pour créer les identifiants OAuth2 Google, adaptée à ta config actuelle (server.port=8080, context-path=/, registration google) :
+
+1. Créer un projet (si tu n'en as pas déjà un)
+Va sur console.cloud.google.com
+En haut, clique sur le sélecteur de projet → Nouveau projet
+Nomme-le par ex. sogeco-fleet-manager → Créer
+2. Configurer l'écran de consentement OAuth
+Menu ☰ → APIs et services → Écran de consentement OAuth
+Type d'utilisateur : Externe (sauf si tu as un Google Workspace et veux restreindre à sogeco.cm, auquel cas Interne)
+Renseigne le nom de l'app, l'email de support, l'email développeur
+Scopes : ajoute openid, .../auth/userinfo.email, .../auth/userinfo.profile (ça correspond à scope: openid, profile, email dans ton application.yml)
+En mode test, ajoute ton propre compte Google comme utilisateur de test
+3. Créer les identifiants (Client ID)
+Menu ☰ → APIs et services → Identifiants
+
+Créer des identifiants → ID client OAuth
+
+Type d'application : Application Web
+
+Nom : sogeco-fleet-manager-dev (ou ce que tu veux)
+
+Origines JavaScript autorisées :
+
+http://localhost:8080
+http://localhost:5173 (ton frontend, vu cors.allowed-origins)
+URI de redirection autorisés — c'est le point important : Spring Security utilise par défaut
+
+
+http://localhost:8080/login/oauth2/code/google
+(calculé à partir de {baseUrl}/login/oauth2/code/{registrationId}, avec registrationId=google). Ajoute exactement cette URL.
+
+Clique Créer → une popup affiche ton Client ID et ton Client Secret
+
+4. Les renseigner dans le projet
+Dans ton .env :
+
+
+GOOGLE_CLIENT_ID=<le client id copié>
+GOOGLE_CLIENT_SECRET=<le client secret copié>
+
+securité a ajouter : limiter le nombre de requette par utilisateur, les clés API ne doivent pas etre visible coté utilisateur
+[FAIT 2026-08-24] Rate limiting : RateLimitFilter (common/security), 120 req/min par utilisateur/IP, cle sogeco.ratelimit.requests-per-minute. Cles API : deja cote backend uniquement (OpenRouteServiceClient/GeocodingClient), rien a corriger.

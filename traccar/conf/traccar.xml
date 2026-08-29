@@ -1,0 +1,59 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
+<properties>
+
+    <entry key='config.default'>./conf/default.xml</entry>
+
+    <!-- ============ Base de donnees ============ -->
+    <!-- Base dediee dans le meme PostgreSQL, schema separe de sogeco_fleet.
+         Traccar cree ses tables lui-meme au premier demarrage. -->
+    <entry key='database.driver'>org.postgresql.Driver</entry>
+    <entry key='database.url'>jdbc:postgresql://postgres:5432/traccar</entry>
+    <entry key='database.user'>sogeco</entry>
+    <entry key='database.password'>Primce2005@</entry>
+
+    <!-- ============ Relais des positions ============ -->
+    <entry key='forward.enable'>true</entry>
+    <entry key='forward.type'>json</entry>
+    <entry key='forward.url'>http://host.docker.internal:8080/api/v1/webhooks/telematics/traccar</entry>
+    <entry key='forward.retry.enable'>true</entry>
+    <entry key='forward.retry.limit'>500</entry>
+
+    <!-- Traccar ne sait envoyer que des en-tetes STATIQUES : il ne peut pas
+         calculer une signature HMAC par message. L'authentification du webhook
+         repose donc sur ce secret partage, comparee a temps constant cote
+         application, plus une restriction reseau. Voir section 7. -->
+    <entry key='forward.header'>X-Webhook-Secret: CHANGEZ_CE_SECRET_PARTAGE_SOGECO_2026</entry>
+
+    <!-- ============ Relais des evenements ============ -->
+    <!-- Alarmes du boitier : exces de vitesse, coupure d'alimentation,
+         bouton SOS, selon ce que remonte le materiel. -->
+    <entry key='event.forward.enable'>true</entry>
+    <entry key='event.forward.type'>json</entry>
+    <entry key='event.forward.url'>http://host.docker.internal:8080/api/v1/webhooks/telematics/traccar-events</entry>
+    <entry key='event.forward.header'>X-Webhook-Secret: CHANGEZ_CE_SECRET_PARTAGE_SOGECO_2026</entry>
+
+    <!-- ============ Enregistrement automatique ============ -->
+    <!-- Cree l'appareil a la premiere connexion, meme si l'IMEI n'est pas
+         encore declare. Pratique en phase d'identification : le boitier
+         apparait tout seul dans l'interface. A DESACTIVER en production. -->
+    <entry key='database.registerUnknown'>true</entry>
+    <entry key='protocols.enable'>osmand,gps103,meiligao,h02</entry>
+    <entry key='gps103.port'>5001</entry>
+    <entry key='meiligao.port'>5005</entry>
+    <entry key='h02.port'>5009</entry>
+
+    <!-- ============ Allegements ============ -->
+    <!-- Le geocodage inverse et la geolocalisation sont assures par notre
+         application : inutile de les faire deux fois. -->
+    <entry key='geocoder.enable'>false</entry>
+    <entry key='geolocation.enable'>false</entry>
+
+    <!-- Filtrage des positions aberrantes, avant relais -->
+    <entry key='filter.enable'>true</entry>
+    <entry key='filter.invalid'>true</entry>
+    <entry key='filter.zero'>true</entry>
+    <entry key='filter.duplicate'>true</entry>
+    <entry key='filter.future'>3600</entry>
+
+</properties>

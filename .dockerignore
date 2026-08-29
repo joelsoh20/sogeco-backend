@@ -1,0 +1,16 @@
+target/
+uploads/
+reports/
+.idea/
+.vscode/
+*.iml
+.env
+.env.example
+.git/
+.github/
+traccar/
+postgres/
+docker-compose.yml
+Revue_Maquettes_SOGECO.md
+doc.txt
+HELP.md
