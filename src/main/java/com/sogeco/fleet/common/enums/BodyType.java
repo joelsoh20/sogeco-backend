@@ -13,5 +13,7 @@ public enum BodyType {
     MOTO,
     TRICYCLE,
     /** Voiture legere dediee a la livraison, distincte de l'UTILITAIRE (camionnette). */
-    VOITURE_LIVRAISON
+    VOITURE_LIVRAISON,
+    /** La remorque elle-meme, sans moteur — tractee par un TRACTEUR, pas de reservoir propre. */
+    SEMI_REMORQUE
 }
