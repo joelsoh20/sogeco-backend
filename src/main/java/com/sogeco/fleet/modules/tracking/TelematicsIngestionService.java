@@ -90,6 +90,7 @@ public class TelematicsIngestionService {
             Mission activeMission = findActiveMission(vehicle.getId());
 
             BigDecimal distance = computeDistance(previous, payload, vehicle);
+            BigDecimal speedKmh = normalizeSpeed(payload.speedKmh());
 
             GpsPosition position = positionRepository.save(GpsPosition.builder()
                     .vehicleId(vehicle.getId())
@@ -97,7 +98,7 @@ public class TelematicsIngestionService {
                     .recordedAt(payload.recordedAt())
                     .latitude(payload.latitude())
                     .longitude(payload.longitude())
-                    .speedKmh(payload.speedKmh())
+                    .speedKmh(speedKmh)
                     .heading(payload.heading())
                     .altitude(payload.altitude())
                     .ignitionOn(payload.ignitionOn())
@@ -124,7 +125,7 @@ public class TelematicsIngestionService {
             alertEngine.evaluate(payload, vehicle,
                     new EvaluationContext(previous, activeMission));
 
-            LivePosition live = buildLivePosition(vehicle, payload, activeMission);
+            LivePosition live = buildLivePosition(vehicle, payload, activeMission, speedKmh);
             cache.store(live);
             broadcast(vehicle, live);
 
@@ -169,6 +170,23 @@ public class TelematicsIngestionService {
         }
 
         return null;
+    }
+
+    /**
+     * En dessous du seuil "a l'arret" (telematics.idle_speed_kmh), la vitesse
+     * remontee par un boitier a l'arret n'est jamais tout a fait nulle — bruit
+     * de mesure GPS, pas un mouvement reel. Sans ce plancher, le statut
+     * afficherait "A l'arret" tandis que la vitesse affichee dirait "1 km/h" :
+     * deux vues incoherentes du meme seuil, deja utilise par ailleurs
+     * (legende de la carte, stats journalieres — TrackingService.stats(),
+     * TelematicsScheduler).
+     */
+    private BigDecimal normalizeSpeed(BigDecimal speedKmh) {
+        if (speedKmh == null) {
+            return null;
+        }
+        int idleThreshold = settingService.getInt("telematics.idle_speed_kmh", 3);
+        return speedKmh.compareTo(BigDecimal.valueOf(idleThreshold)) <= 0 ? BigDecimal.ZERO : speedKmh;
     }
 
     /**
@@ -308,7 +326,8 @@ public class TelematicsIngestionService {
                 .orElse(null);
     }
 
-    private LivePosition buildLivePosition(Vehicle vehicle, TelematicsPayload payload, Mission mission) {
+    private LivePosition buildLivePosition(Vehicle vehicle, TelematicsPayload payload, Mission mission,
+                                           BigDecimal speedKmh) {
         VehicleAssignment assignment = assignmentRepository
                 .findByVehicleIdAndEndDateIsNull(vehicle.getId()).orElse(null);
 
@@ -324,7 +343,7 @@ public class TelematicsIngestionService {
                 vehicle.getStatus(),
                 payload.latitude(),
                 payload.longitude(),
-                payload.speedKmh(),
+                speedKmh,
                 payload.heading(),
                 payload.ignitionOn(),
                 vehicle.getFuelLevelPercent(),
