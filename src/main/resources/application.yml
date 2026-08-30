@@ -121,7 +121,10 @@ sogeco:
   map:
     provider: osm
   cors:
-    allowed-origins: http://localhost:5173
+    # Sans variable d'environnement, comportement inchange (localhost:5173).
+    # Un hebergeur — ou un frontend local pointant sur son URL, comme ici
+    # avec Render — passe CORS_ALLOWED_ORIGINS sans toucher au code.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
 
   ors:
     # Cle gratuite sur openrouteservice.org (2000 requetes/jour, sans carte bancaire).
