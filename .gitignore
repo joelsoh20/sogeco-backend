@@ -5,6 +5,12 @@ target/
 !**/src/test/**/target/
 .env
 
+# Notes personnelles : commandes, identifiants de dev/test — jamais destine au depot.
+doc.txt
+
+# Fichier de verrou ephemere, pas du code source.
+.claude/scheduled_tasks.lock
+
 ### STS ###
 .apt_generated
 .classpath
