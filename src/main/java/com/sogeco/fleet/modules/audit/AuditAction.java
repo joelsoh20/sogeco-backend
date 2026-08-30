@@ -16,6 +16,9 @@ public final class AuditAction {
     public static final String USER_UPDATED         = "USER_UPDATED";
     public static final String USER_SUSPENDED       = "USER_SUSPENDED";
     public static final String USER_DELETED         = "USER_DELETED";
+    public static final String VEHICLE_CREATED      = "VEHICLE_CREATED";
+    public static final String AGENCY_CREATED       = "AGENCY_CREATED";
+    public static final String POLICY_CREATED       = "POLICY_CREATED";
     public static final String PASSWORD_CHANGED     = "PASSWORD_CHANGED";
     public static final String PASSWORD_RESET       = "PASSWORD_RESET";
     public static final String TOTP_ENABLED         = "TOTP_ENABLED";

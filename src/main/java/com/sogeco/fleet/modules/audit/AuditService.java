@@ -39,6 +39,11 @@ public class AuditService {
                     .oldValue(oldValue)
                     .newValue(newValue)
                     .build());
+            // Egalement sur la sortie standard, pas seulement en base : sur un
+            // hebergeur (Render...), c'est le flux de logs qui est consulte en
+            // premier reflexe, avant de penser a interroger l'API d'audit.
+            log.info("audit user={} action={} entity={}#{} ip={}",
+                    userEmail, action, entityType, entityId, ipAddress);
         } catch (RuntimeException e) {
             log.error("Echec d'ecriture du journal d'audit [{}] pour {}", action, userEmail, e);
         }

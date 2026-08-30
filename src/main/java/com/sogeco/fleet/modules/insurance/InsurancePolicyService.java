@@ -96,7 +96,7 @@ public class InsurancePolicyService {
                 .build();
 
         InsurancePolicy saved = repository.save(policy);
-        auditService.record(SecurityUtils.currentUserEmail(), AuditAction.USER_CREATED, ENTITY, saved.getId(), null);
+        auditService.record(SecurityUtils.currentUserEmail(), AuditAction.POLICY_CREATED, ENTITY, saved.getId(), null);
         log.info("Police {} creee par {}, {} camion(s) couvert(s)",
                 saved.getPolicyNumber(), SecurityUtils.currentUserEmail(), saved.getVehicles().size());
 

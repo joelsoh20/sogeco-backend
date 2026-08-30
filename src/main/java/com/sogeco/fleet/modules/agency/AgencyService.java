@@ -87,7 +87,7 @@ public class AgencyService {
         // La ville accueille desormais une implantation.
         saved.getCity().setHasSite(true);
 
-        auditService.record(SecurityUtils.currentUserEmail(), AuditAction.USER_CREATED, ENTITY, saved.getId(), null);
+        auditService.record(SecurityUtils.currentUserEmail(), AuditAction.AGENCY_CREATED, ENTITY, saved.getId(), null);
         return AgencyResponse.from(saved);
     }
 

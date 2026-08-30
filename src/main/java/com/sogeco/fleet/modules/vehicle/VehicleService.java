@@ -180,7 +180,7 @@ public class VehicleService {
                 .build();
 
         Vehicle saved = repository.save(vehicle);
-        auditService.record(SecurityUtils.currentUserEmail(), AuditAction.USER_CREATED, ENTITY, saved.getId(), null);
+        auditService.record(SecurityUtils.currentUserEmail(), AuditAction.VEHICLE_CREATED, ENTITY, saved.getId(), null);
         log.info("Camion {} cree par {}", saved.getRegistrationNumber(), SecurityUtils.currentUserEmail());
 
         return get(saved.getId());
