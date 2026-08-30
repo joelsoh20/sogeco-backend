@@ -52,6 +52,19 @@ public class FuelController {
         return analyticsService.tankLevels(cityId);
     }
 
+    @GetMapping("/weekly-refuel")
+    @Operation(summary = "Km, consommation et carburant a ajouter par camion sur la periode",
+            description = "Pense pour les vehicules a suivi allege (moto, tricycle, voiture de livraison), "
+                    + "avant le plein hebdomadaire. Par defaut, semaine en cours (lundi a aujourd'hui).")
+    public List<WeeklyRefuelResponse> weeklyRefuel(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long cityId) {
+        LocalDate end = to == null ? LocalDate.now() : to;
+        LocalDate start = from == null ? end.with(java.time.DayOfWeek.MONDAY) : from;
+        return analyticsService.weeklyRefuel(start, end, cityId);
+    }
+
     @GetMapping("/stats")
     @Operation(summary = "Compteurs et repartition par camion, optionnellement restreints a une ville")
     public FuelStatsResponse stats(

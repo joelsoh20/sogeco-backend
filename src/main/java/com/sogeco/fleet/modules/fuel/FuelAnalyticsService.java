@@ -5,8 +5,10 @@ import com.sogeco.fleet.modules.driver.dto.DriverFuelEconomyResponse;
 import com.sogeco.fleet.modules.fuel.dto.FuelStatsResponse;
 import com.sogeco.fleet.modules.fuel.dto.TankLevelResponse;
 import com.sogeco.fleet.modules.fuel.dto.TankLevelResponse.TankLevelSource;
+import com.sogeco.fleet.modules.fuel.dto.WeeklyRefuelResponse;
 import com.sogeco.fleet.modules.mission.MissionRepository;
 import com.sogeco.fleet.modules.setting.SettingService;
+import com.sogeco.fleet.modules.tracking.GpsDailyStatRepository;
 import com.sogeco.fleet.modules.vehicle.Vehicle;
 import com.sogeco.fleet.modules.vehicle.VehicleRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ public class FuelAnalyticsService {
     private final FuelLogRepository repository;
     private final MissionRepository missionRepository;
     private final VehicleRepository vehicleRepository;
+    private final GpsDailyStatRepository dailyStatRepository;
     private final SettingService settingService;
 
     @Transactional(readOnly = true)
@@ -193,5 +196,38 @@ public class FuelAnalyticsService {
                 vehicle.getId(), vehicle.getRegistrationNumber(), tankCapacity,
                 estimatedLiters, estimatedPercent, distanceSince,
                 anchor.getFuelDatetime(), TankLevelSource.ESTIMATION_DISTANCE);
+    }
+
+    /**
+     * Kilometrage, consommation et carburant a ajouter sur la periode —
+     * pense pour les vehicules a suivi allege (moto, tricycle, voiture de
+     * livraison) : pas de mission a rapprocher, juste de quoi savoir
+     * combien mettre dans le reservoir au plein du samedi.
+     *
+     * Le niveau avant plein reutilise tankLevelFor() (meme estimation que
+     * l'ecran Carburant) : la seule donnee propre a cet ecran est la
+     * distance parcourue sur la periode, agregee depuis gps_daily_stats.
+     */
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('FUEL_READ')")
+    public List<WeeklyRefuelResponse> weeklyRefuel(LocalDate from, LocalDate to, Long cityId) {
+        return vehicleRepository.findActiveForCity(cityId).stream()
+                .map(vehicle -> {
+                    BigDecimal distance = dailyStatRepository.totalDistance(vehicle.getId(), from, to);
+                    TankLevelResponse tank = tankLevelFor(vehicle);
+
+                    BigDecimal suggestedRefill = tank.tankCapacityLiters() != null
+                            && tank.estimatedFuelLiters() != null
+                            ? tank.tankCapacityLiters().subtract(tank.estimatedFuelLiters())
+                                .max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP)
+                            : null;
+
+                    return new WeeklyRefuelResponse(
+                            vehicle.getId(), vehicle.getRegistrationNumber(), vehicle.getBodyType(),
+                            distance, vehicle.getAvgFuelConsumption(),
+                            tank.tankCapacityLiters(), tank.estimatedFuelLiters(),
+                            suggestedRefill, tank.source());
+                })
+                .toList();
     }
 }

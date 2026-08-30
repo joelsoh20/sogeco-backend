@@ -9,5 +9,9 @@ public enum BodyType {
     FOURGON,
     PLATEAU,
     /** Petit utilitaire / camionnette — livraison urbaine du dernier kilometre. */
-    UTILITAIRE
+    UTILITAIRE,
+    MOTO,
+    TRICYCLE,
+    /** Voiture legere dediee a la livraison, distincte de l'UTILITAIRE (camionnette). */
+    VOITURE_LIVRAISON
 }
