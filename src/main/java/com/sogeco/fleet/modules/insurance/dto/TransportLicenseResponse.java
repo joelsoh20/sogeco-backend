@@ -4,6 +4,7 @@ import com.sogeco.fleet.common.enums.PolicyStatus;
 import com.sogeco.fleet.modules.insurance.TransportLicense;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 
 public record TransportLicenseResponse(
@@ -17,13 +18,14 @@ public record TransportLicenseResponse(
         Long daysRemaining,
         PolicyStatus status,
         BigDecimal cost,
-        String notes
+        String notes,
+        Instant createdAt
 ) {
     public static TransportLicenseResponse from(TransportLicense l) {
         return new TransportLicenseResponse(
                 l.getId(), l.getReference(), l.getIssuingAuthority(),
                 l.getReceiptNumber(), l.getPower(),
                 l.getIssueDate(), l.getExpiryDate(), l.daysRemaining(),
-                l.getStatus(), l.getCost(), l.getNotes());
+                l.getStatus(), l.getCost(), l.getNotes(), l.getCreatedAt());
     }
 }

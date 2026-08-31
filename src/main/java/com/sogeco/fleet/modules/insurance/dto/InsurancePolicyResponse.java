@@ -8,6 +8,7 @@ import com.sogeco.fleet.modules.insurance.InsurancePolicy;
 import com.sogeco.fleet.modules.vehicle.Vehicle;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -27,7 +28,8 @@ public record InsurancePolicyResponse(
         PolicyStatus status,
         List<String> vehicles,
         Boolean coversFleet,
-        String notes
+        String notes,
+        Instant createdAt
 ) {
     public static InsurancePolicyResponse from(InsurancePolicy p) {
         return new InsurancePolicyResponse(
@@ -37,6 +39,6 @@ public record InsurancePolicyResponse(
                 p.getPremiumAmount(), p.getPaymentFrequency(),
                 p.getStartDate(), p.getEndDate(), p.daysRemaining(), p.getStatus(),
                 p.getVehicles().stream().map(Vehicle::getRegistrationNumber).sorted().toList(),
-                p.coversFleet(), p.getNotes());
+                p.coversFleet(), p.getNotes(), p.getCreatedAt());
     }
 }

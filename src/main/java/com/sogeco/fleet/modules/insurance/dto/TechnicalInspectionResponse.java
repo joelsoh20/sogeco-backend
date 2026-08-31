@@ -4,6 +4,7 @@ import com.sogeco.fleet.common.enums.InspectionResult;
 import com.sogeco.fleet.modules.insurance.TechnicalInspection;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 
 public record TechnicalInspectionResponse(
@@ -17,7 +18,8 @@ public record TechnicalInspectionResponse(
         Long daysUntilNext,
         InspectionResult result,
         String defectsNoted,
-        BigDecimal cost
+        BigDecimal cost,
+        Instant createdAt
 ) {
     public static TechnicalInspectionResponse from(TechnicalInspection i) {
         return new TechnicalInspectionResponse(
@@ -25,6 +27,6 @@ public record TechnicalInspectionResponse(
                 i.getCenter() == null ? null : i.getCenter().getId(),
                 i.getCenter() == null ? null : i.getCenter().getName(),
                 i.getInspectionDate(), i.getNextInspectionDate(), i.daysUntilNext(),
-                i.getResult(), i.getDefectsNoted(), i.getCost());
+                i.getResult(), i.getDefectsNoted(), i.getCost(), i.getCreatedAt());
     }
 }

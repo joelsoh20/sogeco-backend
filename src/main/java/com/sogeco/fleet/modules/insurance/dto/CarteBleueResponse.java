@@ -3,6 +3,7 @@ package com.sogeco.fleet.modules.insurance.dto;
 import com.sogeco.fleet.modules.insurance.CarteBleue;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 
 public record CarteBleueResponse(
@@ -16,12 +17,13 @@ public record CarteBleueResponse(
         Long daysUntilExpiry,
         BigDecimal power,
         BigDecimal cost,
-        String notes
+        String notes,
+        Instant createdAt
 ) {
     public static CarteBleueResponse from(CarteBleue c) {
         return new CarteBleueResponse(
                 c.getId(), c.getVehicle().getId(), c.getVehicle().getRegistrationNumber(),
                 c.getReceiptNumber(), c.getCategory(), c.getIssueDate(), c.getExpiryDate(),
-                c.daysUntilExpiry(), c.getPower(), c.getCost(), c.getNotes());
+                c.daysUntilExpiry(), c.getPower(), c.getCost(), c.getNotes(), c.getCreatedAt());
     }
 }
