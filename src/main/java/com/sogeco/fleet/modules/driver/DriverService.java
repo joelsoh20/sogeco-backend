@@ -204,31 +204,55 @@ public class DriverService {
         return get(driver.getId());
     }
 
+    /**
+     * Compteurs de tete de l'ecran Chauffeurs, pour l'ensemble de la flotte
+     * (cityId absent) ou pour une seule ville — calcules ici en une seule
+     * passe sur la liste des chauffeurs actifs concernes plutot que par
+     * plusieurs requetes d'agregation, pour eviter de dupliquer chaque
+     * requete en une variante "par ville".
+     */
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('DRIVER_READ')")
-    public DriverStatsResponse stats() {
+    public DriverStatsResponse stats(Long cityId) {
+        List<Driver> drivers = cityId == null
+                ? repository.findByActiveTrueOrderByLastNameAsc()
+                : repository.findByCity(cityId);
+
         Map<String, Long> distribution = new LinkedHashMap<>();
         for (RatingClass value : RatingClass.values()) {
             distribution.put(value.name(), 0L);
         }
-        repository.findByActiveTrueAndPerformanceScoreIsNotNullOrderByPerformanceScoreDesc()
+        drivers.stream()
+                .filter(d -> d.getPerformanceScore() != null)
                 .forEach(driver -> distribution.merge(driver.getRatingClass().name(), 1L, Long::sum));
 
         int warningDays = 30;
-        long expiringLicenses = repository
-                .findByActiveTrueAndLicenseExpiryDateLessThanEqual(LocalDate.now().plusDays(warningDays))
-                .size();
+        LocalDate limit = LocalDate.now().plusDays(warningDays);
+        long expiringLicenses = drivers.stream()
+                .filter(d -> d.getLicenseExpiryDate() != null && !d.getLicenseExpiryDate().isAfter(limit))
+                .count();
+
+        long actifs = drivers.stream().filter(d -> d.getStatus() == DriverStatus.ACTIF).count();
+        long enConge = drivers.stream().filter(d -> d.getStatus() == DriverStatus.EN_CONGE).count();
+        long suspendus = drivers.stream().filter(d -> d.getStatus() == DriverStatus.SUSPENDU).count();
+
+        List<BigDecimal> scores = drivers.stream()
+                .map(Driver::getPerformanceScore).filter(Objects::nonNull).toList();
+        BigDecimal avgPerformance = scores.isEmpty() ? null
+                : scores.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
+                        .divide(BigDecimal.valueOf(scores.size()), 2, java.math.RoundingMode.HALF_UP);
+
+        BigDecimal totalKilometers = drivers.stream()
+                .map(Driver::getTotalKilometers).filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        long totalIncidents = drivers.stream()
+                .mapToLong(d -> d.getIncidentsCount() == null ? 0 : d.getIncidentsCount()).sum();
 
         return new DriverStatsResponse(
-                repository.countByActiveTrue(),
-                repository.countByStatusAndActiveTrue(DriverStatus.ACTIF),
-                repository.countByStatusAndActiveTrue(DriverStatus.EN_CONGE),
-                repository.countByStatusAndActiveTrue(DriverStatus.SUSPENDU),
-                repository.averagePerformanceScore(),
-                repository.totalKilometers(),
-                repository.totalIncidents() == null ? 0 : repository.totalIncidents(),
-                expiringLicenses,
-                distribution);
+                drivers.size(), actifs, enConge, suspendus,
+                avgPerformance, totalKilometers, totalIncidents,
+                expiringLicenses, distribution);
     }
 
     @Transactional(readOnly = true)

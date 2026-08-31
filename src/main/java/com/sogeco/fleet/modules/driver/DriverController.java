@@ -60,9 +60,9 @@ public class DriverController {
     }
 
     @GetMapping("/stats")
-    @Operation(summary = "Compteurs et repartition par notation")
-    public DriverStatsResponse stats() {
-        return service.stats();
+    @Operation(summary = "Compteurs et repartition par notation, pour la flotte entiere ou une seule ville")
+    public DriverStatsResponse stats(@RequestParam(required = false) Long cityId) {
+        return service.stats(cityId);
     }
 
     @GetMapping("/search")
