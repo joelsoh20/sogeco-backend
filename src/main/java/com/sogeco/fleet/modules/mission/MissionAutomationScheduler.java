@@ -11,9 +11,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 
 /**
- * Genere chaque jour la mission d'une livraison recurrente
+ * Genere chaque jour ouvre la mission d'une livraison recurrente
  * (MissionAutomation), a 9h30 — assez tot pour laisser le temps de
  * l'annuler avant un depart, assez tard pour eviter la nuit.
+ * "Chaque jour" signifie du lundi au samedi : jamais le dimanche.
  *
  * Meme logique que LaverieScheduler pour le lavage hebdomadaire : passe
  * directement par MissionService.generateAutomatedMission (pas de
@@ -30,10 +31,15 @@ public class MissionAutomationScheduler {
     private final MissionRepository missionRepository;
     private final MissionService missionService;
 
-    @Scheduled(cron = "0 30 9 * * *", zone = "Africa/Douala")
+    // Jour de la semaine dans l'expression cron (MON-SAT) : garde-fou redondant ci-dessous
+    // au cas ou la methode serait un jour declenchee autrement qu'a travers ce planning.
+    @Scheduled(cron = "0 30 9 * * MON-SAT", zone = "Africa/Douala")
     @Transactional
     public void genererLivraisonsDuJour() {
         LocalDate today = LocalDate.now(ZONE);
+        if (today.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) {
+            return;
+        }
         Instant startOfDay = today.atStartOfDay(ZONE).toInstant();
         Instant endOfDay = today.plusDays(1).atStartOfDay(ZONE).toInstant();
 

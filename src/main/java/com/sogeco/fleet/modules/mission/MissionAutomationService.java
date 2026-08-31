@@ -1,5 +1,6 @@
 package com.sogeco.fleet.modules.mission;
 
+import com.sogeco.fleet.common.exception.BusinessException;
 import com.sogeco.fleet.common.exception.ResourceNotFoundException;
 import com.sogeco.fleet.modules.agency.Agency;
 import com.sogeco.fleet.modules.agency.AgencyRepository;
@@ -18,6 +19,7 @@ import com.sogeco.fleet.modules.quartier.QuartierRepository;
 import com.sogeco.fleet.modules.vehicle.Vehicle;
 import com.sogeco.fleet.modules.vehicle.VehicleRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,10 +59,20 @@ public class MissionAutomationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Ville", request.cityId()));
         ServiceType serviceType = serviceTypeRepository.findById(request.serviceTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Type de prestation", request.serviceTypeId()));
+        if (ServiceType.VOYAGE_HORS_VILLE.equals(serviceType.getCode())) {
+            throw new BusinessException("RG-AUTO-1",
+                    "Le voyage hors ville ne peut pas etre automatise : une automatisation ne porte qu'une seule ville",
+                    HttpStatus.UNPROCESSABLE_CONTENT);
+        }
         Client client = request.clientId() == null ? null : clientRepository.findById(request.clientId())
                 .orElseThrow(() -> new ResourceNotFoundException("Client", request.clientId()));
         Vehicle vehicle = vehicleRepository.findById(request.vehicleId())
                 .orElseThrow(() -> new ResourceNotFoundException("Camion", request.vehicleId()));
+        if (vehicle.getCity() == null || !vehicle.getCity().getId().equals(request.cityId())) {
+            throw new BusinessException("RG-AUTO-2",
+                    "Le camion choisi n'est pas base dans la ville concernee",
+                    HttpStatus.UNPROCESSABLE_CONTENT);
+        }
         Driver driver = driverRepository.findById(request.driverId())
                 .orElseThrow(() -> new ResourceNotFoundException("Chauffeur", request.driverId()));
         Agency agency = agencyRepository.findById(request.agencyId())
