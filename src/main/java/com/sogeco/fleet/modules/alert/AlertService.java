@@ -140,6 +140,21 @@ public class AlertService {
         return AlertResponse.from(alert);
     }
 
+    /**
+     * Cloture automatiquement une perte de signal des qu'une position
+     * arrive de nouveau pour ce camion — sans attendre qu'un humain la
+     * resolve a la main. Sans effet si aucune alerte n'est ouverte.
+     */
+    @Transactional
+    public void resolveSignalRestored(Long vehicleId) {
+        repository.findOpen(AlertType.PERTE_SIGNAL, vehicleId).ifPresent(alert -> {
+            alert.resolve(null, "Signal rétabli automatiquement");
+            // Sans ce signal, l'ecran Alertes deja ouvert ne saurait pas que
+            // l'alerte vient de se fermer toute seule avant un rafraichissement manuel.
+            events.publishEvent(new AlertTriggeredEvent(alert.getId()));
+        });
+    }
+
     @Transactional
     public AlertResponse resolve(Long id, String note) {
         Alert alert = find(id);

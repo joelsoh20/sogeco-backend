@@ -3,6 +3,7 @@ package com.sogeco.fleet.modules.tracking;
 import com.sogeco.fleet.common.enums.AlertType;
 import com.sogeco.fleet.modules.alert.AlertRuleRepository;
 import com.sogeco.fleet.modules.alert.AlertService;
+import com.sogeco.fleet.modules.routing.GeocodingClient;
 import com.sogeco.fleet.modules.setting.SettingService;
 import com.sogeco.fleet.modules.vehicle.Vehicle;
 import com.sogeco.fleet.modules.vehicle.VehicleRepository;
@@ -36,6 +37,7 @@ public class TelematicsScheduler {
     private final AlertRuleRepository ruleRepository;
     private final AlertService alertService;
     private final SettingService settingService;
+    private final GeocodingClient geocodingClient;
 
     /**
      * Agregation de la veille, PUIS purge. L'ordre est essentiel :
@@ -126,6 +128,12 @@ public class TelematicsScheduler {
                     continue;
                 }
 
+                // Dernier point connu avant le silence : c'est la ou le camion se
+                // trouvait au moment de la perte de signal, pas sa position actuelle
+                // (inconnue par definition tant que le signal n'est pas revenu).
+                GpsPosition lastPosition = positionRepository.findLatest(vehicleId).orElse(null);
+                String locationLabel = lastPosition == null ? null : describe(lastPosition);
+
                 alertService.raise(AlertService.AlertRequest.builder()
                         .type(AlertType.PERTE_SIGNAL)
                         .level(rule.getLevel())
@@ -133,6 +141,9 @@ public class TelematicsScheduler {
                         .vehicle(vehicle)
                         .title("Perte de signal")
                         .description("Aucune position recue depuis plus de %d minutes".formatted(threshold))
+                        .latitude(lastPosition == null ? null : lastPosition.getLatitude())
+                        .longitude(lastPosition == null ? null : lastPosition.getLongitude())
+                        .locationLabel(locationLabel)
                         .build());
             }
 
@@ -151,6 +162,20 @@ public class TelematicsScheduler {
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * Lieu lisible du dernier point connu ("Akwa, Douala") — a defaut de
+     * geocodage disponible (cle absente, appel en echec), les coordonnees
+     * brutes restent une indication utile plutot que rien.
+     */
+    private String describe(GpsPosition position) {
+        return geocodingClient.reverseGeocode(position.getLatitude(), position.getLongitude())
+                .map(place -> place.locality() == null || place.locality().isBlank()
+                        ? place.name()
+                        : "%s, %s".formatted(place.name(), place.locality()))
+                .orElseGet(() -> "%.4f, %.4f".formatted(
+                        position.getLatitude().doubleValue(), position.getLongitude().doubleValue()));
+    }
 
     private BigDecimal decimal(Object value) {
         if (value == null) {

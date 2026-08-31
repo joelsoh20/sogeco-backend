@@ -5,6 +5,7 @@ import com.sogeco.fleet.common.enums.WebhookStatus;
 import com.sogeco.fleet.common.event.PositionReceivedEvent;
 import com.sogeco.fleet.common.util.GeoUtils;
 import com.sogeco.fleet.modules.alert.AlertEngine;
+import com.sogeco.fleet.modules.alert.AlertService;
 import com.sogeco.fleet.modules.alert.evaluator.EvaluationContext;
 import com.sogeco.fleet.modules.geofence.GeofenceEvaluationService;
 import com.sogeco.fleet.modules.mission.Mission;
@@ -55,6 +56,7 @@ public class TelematicsIngestionService {
     private final MissionService missionService;
     private final PositionCacheService cache;
     private final AlertEngine alertEngine;
+    private final AlertService alertService;
     private final GeofenceEvaluationService geofenceService;
     private final SettingService settingService;
     private final ApplicationEventPublisher events;
@@ -124,6 +126,10 @@ public class TelematicsIngestionService {
 
             alertEngine.evaluate(payload, vehicle,
                     new EvaluationContext(previous, activeMission));
+
+            // Cette trame prouve que le signal est revenu : toute alerte de perte de
+            // signal encore ouverte pour ce camion n'a plus lieu d'etre.
+            alertService.resolveSignalRestored(vehicle.getId());
 
             LivePosition live = buildLivePosition(vehicle, payload, activeMission, speedKmh);
             cache.store(live);
