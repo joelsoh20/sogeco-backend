@@ -100,6 +100,23 @@ public interface FuelLogRepository extends JpaRepository<FuelLog, Long>, JpaSpec
            """)
     List<FuelLog> findRecentConsumptions(@Param("vehicleId") Long vehicleId, Pageable pageable);
 
+    /**
+     * Memes criteres, restreints aux pleins rattaches a une mission dont le
+     * tonnage est renseigne -- le filtrage par seuil (part de la capacite
+     * du camion) se fait ensuite cote service, non exprimable ici sans
+     * recharger le camion pour chaque ligne.
+     */
+    @Query("""
+           SELECT f FROM FuelLog f
+           WHERE f.vehicle.id = :vehicleId
+             AND f.computedConsumption IS NOT NULL
+             AND f.status <> com.sogeco.fleet.common.enums.FuelLogStatus.ANNULE
+             AND f.mission IS NOT NULL
+             AND f.mission.cargoWeightKg IS NOT NULL
+           ORDER BY f.fuelDatetime DESC
+           """)
+    List<FuelLog> findRecentWithCargoWeight(@Param("vehicleId") Long vehicleId, Pageable pageable);
+
     @Query("""
            SELECT COALESCE(SUM(f.totalCost), 0) FROM FuelLog f
            WHERE f.status <> com.sogeco.fleet.common.enums.FuelLogStatus.ANNULE

@@ -14,6 +14,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.time.LocalDate;
 
@@ -65,9 +66,10 @@ public class MissionController {
             @RequestParam(required = false) Long destinationAgencyId,
             @RequestParam(required = false) Long originQuartierId,
             @RequestParam(required = false) Long destinationQuartierId,
-            @RequestParam(required = false) Long vehicleId) {
+            @RequestParam(required = false) Long vehicleId,
+            @RequestParam(required = false) BigDecimal cargoWeightKg) {
         return service.estimate(originCityId, destinationCityId, originAgencyId, destinationAgencyId,
-                originQuartierId, destinationQuartierId, vehicleId);
+                originQuartierId, destinationQuartierId, vehicleId, cargoWeightKg);
     }
 
     @PostMapping

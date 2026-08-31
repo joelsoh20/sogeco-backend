@@ -117,6 +117,18 @@ public class Vehicle extends SoftDeletableEntity {
     @Column(name = "avg_fuel_consumption", precision = 6, scale = 2)
     private BigDecimal avgFuelConsumption;
 
+    /**
+     * Moyenne des pleins rattaches a une mission chargee (tonnage renseigne,
+     * au moins {@code fuel.loaded_threshold_percent} de la capacite du
+     * camion) -- distincte de {@link #avgFuelConsumption}, qui reste la
+     * moyenne generale (tous pleins confondus) utilisee des qu'aucune
+     * information de tonnage n'est disponible. Nulle tant qu'aucun plein
+     * charge n'a ete releve : le tonnage restant facultatif, cette valeur
+     * peut legitimement ne jamais exister pour un camion donne.
+     */
+    @Column(name = "avg_fuel_consumption_loaded", precision = 6, scale = 2)
+    private BigDecimal avgFuelConsumptionLoaded;
+
     // ---- Maintenance preventive ----
 
     @Column(name = "next_maintenance_date")

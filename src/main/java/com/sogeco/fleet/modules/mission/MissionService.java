@@ -195,7 +195,8 @@ public class MissionService {
         MissionEstimateResponse estimate = computeEstimate(
                 request.originCityId(), request.destinationCityId(),
                 request.agencyId(), request.destinationAgencyId(),
-                request.originQuartierId(), request.destinationQuartierId(), request.vehicleId());
+                request.originQuartierId(), request.destinationQuartierId(), request.vehicleId(),
+                request.cargoWeightKg());
 
         Mission mission = Mission.builder()
                 .missionNumber(nextMissionNumber())
@@ -250,7 +251,8 @@ public class MissionService {
         MissionEstimateResponse estimate = computeEstimate(
                 automation.getCity().getId(), null,
                 automation.getAgency().getId(), null,
-                null, automation.getDestinationQuartier().getId(), automation.getVehicle().getId());
+                null, automation.getDestinationQuartier().getId(), automation.getVehicle().getId(),
+                null);
 
         Mission mission = Mission.builder()
                 .missionNumber(nextMissionNumber())
@@ -344,14 +346,16 @@ public class MissionService {
     @PreAuthorize("hasAuthority('MISSION_READ')")
     public MissionEstimateResponse estimate(Long originCityId, Long destinationCityId,
                                             Long originAgencyId, Long destinationAgencyId,
-                                            Long originQuartierId, Long destinationQuartierId, Long vehicleId) {
+                                            Long originQuartierId, Long destinationQuartierId, Long vehicleId,
+                                            BigDecimal cargoWeightKg) {
         return computeEstimate(originCityId, destinationCityId, originAgencyId, destinationAgencyId,
-                originQuartierId, destinationQuartierId, vehicleId);
+                originQuartierId, destinationQuartierId, vehicleId, cargoWeightKg);
     }
 
     private MissionEstimateResponse computeEstimate(Long originCityId, Long destinationCityId,
                                                      Long originAgencyId, Long destinationAgencyId,
-                                                     Long originQuartierId, Long destinationQuartierId, Long vehicleId) {
+                                                     Long originQuartierId, Long destinationQuartierId, Long vehicleId,
+                                                     BigDecimal cargoWeightKg) {
         Route route = findReferenceRoute(originCityId, destinationCityId);
         if (route != null && route.getReferenceDistanceKm() != null) {
             return new MissionEstimateResponse(
@@ -388,13 +392,34 @@ public class MissionService {
         BigDecimal fuel = null;
         if (vehicleId != null) {
             Vehicle vehicle = vehicleRepository.findById(vehicleId).orElse(null);
-            if (vehicle != null && vehicle.getAvgFuelConsumption() != null) {
-                fuel = roadDistance.multiply(vehicle.getAvgFuelConsumption())
+            BigDecimal consumption = vehicle == null ? null : resolveConsumption(vehicle, cargoWeightKg);
+            if (consumption != null) {
+                fuel = roadDistance.multiply(consumption)
                         .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
             }
         }
 
         return new MissionEstimateResponse(roadDistance, fuel, source, geometry);
+    }
+
+    /**
+     * Moyenne "camion charge" si le tonnage renseigne l'exige et qu'elle est
+     * disponible, moyenne generale sinon. Le tonnage restant facultatif a la
+     * saisie d'une mission (cargoWeightKg peut etre null), ce repli est
+     * systematique -- jamais de blocage faute de tonnage.
+     */
+    private BigDecimal resolveConsumption(Vehicle vehicle, BigDecimal cargoWeightKg) {
+        BigDecimal capacityKg = vehicle.capacityKg();
+        if (cargoWeightKg != null && vehicle.getAvgFuelConsumptionLoaded() != null
+                && capacityKg != null && capacityKg.signum() > 0) {
+            int thresholdPercent = settingService.getInt("fuel.loaded_threshold_percent", 50);
+            BigDecimal thresholdKg = capacityKg.multiply(BigDecimal.valueOf(thresholdPercent))
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+            if (cargoWeightKg.compareTo(thresholdKg) >= 0) {
+                return vehicle.getAvgFuelConsumptionLoaded();
+            }
+        }
+        return vehicle.getAvgFuelConsumption();
     }
 
     /** Cherche le corridor dans les deux sens : la distance routiere est la meme aller-retour. */

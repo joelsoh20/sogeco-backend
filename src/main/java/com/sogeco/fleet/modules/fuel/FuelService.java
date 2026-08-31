@@ -365,17 +365,52 @@ public class FuelService {
         List<FuelLog> history = repository.findRecentConsumptions(
                 vehicle.getId(), PageRequest.of(0, historySize));
 
-        if (history.isEmpty()) {
-            vehicle.setAvgFuelConsumption(null);
-            return;
+        vehicle.setAvgFuelConsumption(average(history));
+        vehicle.setAvgFuelConsumptionLoaded(loadedAverage(vehicle, historySize));
+    }
+
+    /**
+     * Moyenne restreinte aux pleins dont la mission rattachee porte un
+     * tonnage significatif -- le tonnage etant facultatif a la saisie
+     * d'une mission, cette moyenne reste nulle tant qu'aucun plein charge
+     * n'est disponible, sans jamais bloquer quoi que ce soit.
+     *
+     * Le seuil "charge" est relatif a la capacite du camion (pourcentage
+     * parametre), pas une valeur fixe en kg : un tricycle a 200 kg et un
+     * semi-remorque a 20 t n'ont pas la meme notion de "charge".
+     */
+    private BigDecimal loadedAverage(Vehicle vehicle, int historySize) {
+        BigDecimal capacityKg = vehicle.capacityKg();
+        if (capacityKg == null || capacityKg.signum() <= 0) {
+            return null;
         }
 
-        BigDecimal average = history.stream()
+        int thresholdPercent = settingService.getInt("fuel.loaded_threshold_percent", 50);
+        BigDecimal thresholdKg = capacityKg.multiply(BigDecimal.valueOf(thresholdPercent))
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+
+        // Bassin plus large que la moyenne generale : une partie des pleins
+        // avec mission n'atteindra pas le seuil et sera ecartee ci-dessous.
+        List<FuelLog> candidates = repository.findRecentWithCargoWeight(
+                vehicle.getId(), PageRequest.of(0, historySize * 4));
+
+        List<FuelLog> loaded = candidates.stream()
+                .filter(log -> log.getMission().getCargoWeightKg().compareTo(thresholdKg) >= 0)
+                .limit(historySize)
+                .toList();
+
+        return average(loaded);
+    }
+
+    /** Nulle si {@code logs} est vide -- une moyenne sur zero plein n'a pas de sens. */
+    private BigDecimal average(List<FuelLog> logs) {
+        if (logs.isEmpty()) {
+            return null;
+        }
+        return logs.stream()
                 .map(FuelLog::getComputedConsumption)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(history.size()), 2, RoundingMode.HALF_UP);
-
-        vehicle.setAvgFuelConsumption(average);
+                .divide(BigDecimal.valueOf(logs.size()), 2, RoundingMode.HALF_UP);
     }
 
     /** Rattachement automatique a la mission en cours (RG-6.9). */
