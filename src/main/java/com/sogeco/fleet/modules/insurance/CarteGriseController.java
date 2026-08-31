@@ -49,4 +49,10 @@ public class CarteGriseController {
     public CarteGriseResponse create(@Valid @RequestBody CarteGriseRequest request) {
         return service.create(request);
     }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Corriger une carte grise")
+    public CarteGriseResponse update(@PathVariable Long id, @Valid @RequestBody CarteGriseRequest request) {
+        return service.update(id, request);
+    }
 }

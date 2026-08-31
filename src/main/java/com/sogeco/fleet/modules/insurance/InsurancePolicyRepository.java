@@ -37,6 +37,8 @@ public interface InsurancePolicyRepository extends JpaRepository<InsurancePolicy
 
     boolean existsByPolicyNumber(String policyNumber);
 
+    boolean existsByPolicyNumberAndIdNot(String policyNumber, Long id);
+
     /** Prime totale des polices souscrites/renouvelees sur la periode, pour la repartition des couts. */
     @Query("""
            SELECT COALESCE(SUM(p.premiumAmount), 0) FROM InsurancePolicy p

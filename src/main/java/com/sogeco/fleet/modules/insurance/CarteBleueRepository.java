@@ -20,4 +20,6 @@ public interface CarteBleueRepository extends JpaRepository<CarteBleue, Long> {
     List<CarteBleue> findByExpiryDateLessThanEqual(LocalDate limit);
 
     boolean existsByReceiptNumber(String receiptNumber);
+
+    boolean existsByReceiptNumberAndIdNot(String receiptNumber, Long id);
 }

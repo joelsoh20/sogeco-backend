@@ -43,4 +43,10 @@ public class CarteBleueController {
     public CarteBleueResponse create(@Valid @RequestBody CarteBleueRequest request) {
         return service.create(request);
     }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Corriger une carte bleue")
+    public CarteBleueResponse update(@PathVariable Long id, @Valid @RequestBody CarteBleueRequest request) {
+        return service.update(id, request);
+    }
 }

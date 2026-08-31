@@ -3,6 +3,7 @@ package com.sogeco.fleet.modules.insurance;
 import com.sogeco.fleet.common.dto.PageResponse;
 import com.sogeco.fleet.common.exception.BusinessException;
 import com.sogeco.fleet.common.exception.ResourceNotFoundException;
+import com.sogeco.fleet.common.security.EditWindowGuard;
 import com.sogeco.fleet.common.security.SecurityUtils;
 import com.sogeco.fleet.modules.driver.Driver;
 import com.sogeco.fleet.modules.driver.DriverRepository;
@@ -98,6 +99,40 @@ public class CarteGriseService {
                 vehicle.getRegistrationNumber(), SecurityUtils.currentUserEmail());
 
         return CarteGriseResponse.from(saved);
+    }
+
+    @Transactional
+    @PreAuthorize("hasAuthority('INSURANCE_UPDATE')")
+    public CarteGriseResponse update(Long id, CarteGriseRequest request) {
+        CarteGrise carte = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Carte grise", id));
+
+        EditWindowGuard.assertEditable(carte.getCreatedAt(),
+                settingService.getInt("carte_grise.edit_window_hours", 24), "RG-CG-EDIT", "Cette carte grise");
+
+        Vehicle vehicle = vehicleRepository.findById(request.vehicleId())
+                .orElseThrow(() -> new ResourceNotFoundException("Camion", request.vehicleId()));
+
+        LocalDate expiry = request.expiryDate() != null
+                ? request.expiryDate()
+                : request.issueDate().plusYears(
+                        settingService.getInt("compliance.carte_grise_validity_years", 10));
+
+        carte.setVehicle(vehicle);
+        carte.setRegistrationNumber(request.registrationNumber());
+        carte.setChassisNumber(request.chassisNumber());
+        carte.setBrand(request.brand());
+        carte.setGenre(request.genre());
+        carte.setBodyType(request.bodyType());
+        carte.setSeatCount(request.seatCount());
+        carte.setFirstCirculationDate(request.firstCirculationDate());
+        carte.setIssueDate(request.issueDate());
+        carte.setExpiryDate(expiry);
+        carte.setCost(request.cost());
+        carte.setNotes(request.notes());
+
+        log.info("Carte grise de {} corrigee par {}", vehicle.getRegistrationNumber(), SecurityUtils.currentUserEmail());
+        return CarteGriseResponse.from(carte);
     }
 
     /** Cartes grises arrivant a echeance (10 ans par defaut), pour l'echeancier unifie. */

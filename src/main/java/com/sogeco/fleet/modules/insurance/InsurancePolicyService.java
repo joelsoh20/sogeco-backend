@@ -4,6 +4,7 @@ import com.sogeco.fleet.common.enums.PolicyStatus;
 import com.sogeco.fleet.common.exception.BusinessException;
 import com.sogeco.fleet.common.exception.DuplicateResourceException;
 import com.sogeco.fleet.common.exception.ResourceNotFoundException;
+import com.sogeco.fleet.common.security.EditWindowGuard;
 import com.sogeco.fleet.common.security.SecurityUtils;
 import com.sogeco.fleet.modules.audit.AuditAction;
 import com.sogeco.fleet.modules.audit.AuditService;
@@ -11,6 +12,7 @@ import com.sogeco.fleet.modules.insurance.dto.InsurancePolicyRequest;
 import com.sogeco.fleet.modules.insurance.dto.InsurancePolicyResponse;
 import com.sogeco.fleet.modules.partner.Partner;
 import com.sogeco.fleet.modules.partner.PartnerRepository;
+import com.sogeco.fleet.modules.setting.SettingService;
 import com.sogeco.fleet.modules.vehicle.Vehicle;
 import com.sogeco.fleet.modules.vehicle.VehicleRepository;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +49,7 @@ public class InsurancePolicyService {
     private final PartnerRepository partnerRepository;
     private final VehicleRepository vehicleRepository;
     private final AuditService auditService;
+    private final SettingService settingService;
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
@@ -101,6 +104,46 @@ public class InsurancePolicyService {
                 saved.getPolicyNumber(), SecurityUtils.currentUserEmail(), saved.getVehicles().size());
 
         return InsurancePolicyResponse.from(saved);
+    }
+
+    /**
+     * Correction d'une police existante (RG-8-EDIT) -- distinct de renew(),
+     * qui cree une nouvelle police et cloture l'ancienne. Le statut n'est
+     * jamais touche ici : il reste du ressort de renew()/cancel().
+     */
+    @Transactional
+    @PreAuthorize("hasAuthority('INSURANCE_UPDATE')")
+    public InsurancePolicyResponse update(Long id, InsurancePolicyRequest request) {
+        InsurancePolicy policy = repository.findWithVehiclesById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Police d'assurance", id));
+
+        EditWindowGuard.assertEditable(policy.getCreatedAt(),
+                settingService.getInt("policy.edit_window_hours", 24), "RG-8-EDIT", "Cette police");
+
+        if (!request.policyNumber().equals(policy.getPolicyNumber())
+                && repository.existsByPolicyNumberAndIdNot(request.policyNumber(), id)) {
+            throw new DuplicateResourceException("Police d'assurance", "numero", request.policyNumber());
+        }
+        if (!request.endDate().isAfter(request.startDate())) {
+            throw new BusinessException("RG-8.1",
+                    "La date de fin doit etre posterieure a la date de debut", HttpStatus.UNPROCESSABLE_CONTENT);
+        }
+
+        policy.setPolicyNumber(request.policyNumber());
+        policy.setInsurer(findInsurer(request.partnerId()));
+        policy.setCoverageType(request.coverageType());
+        policy.setCategory(request.category());
+        policy.setVehicleRegistration(emptyToNull(request.vehicleRegistration()));
+        policy.setPremiumAmount(request.premiumAmount());
+        policy.setPaymentFrequency(request.paymentFrequency() == null
+                ? com.sogeco.fleet.common.enums.PaymentFrequency.ANNUEL : request.paymentFrequency());
+        policy.setStartDate(request.startDate());
+        policy.setEndDate(request.endDate());
+        policy.setVehicles(resolveVehicles(request.vehicleIds(), request.vehicleRegistration()));
+        policy.setNotes(request.notes());
+
+        log.info("Police {} corrigee par {}", policy.getPolicyNumber(), SecurityUtils.currentUserEmail());
+        return InsurancePolicyResponse.from(policy);
     }
 
     /**

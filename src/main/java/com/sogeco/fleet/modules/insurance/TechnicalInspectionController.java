@@ -49,4 +49,10 @@ public class TechnicalInspectionController {
     public TechnicalInspectionResponse create(@Valid @RequestBody TechnicalInspectionRequest request) {
         return service.create(request);
     }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Corriger une visite technique")
+    public TechnicalInspectionResponse update(@PathVariable Long id, @Valid @RequestBody TechnicalInspectionRequest request) {
+        return service.update(id, request);
+    }
 }

@@ -35,4 +35,10 @@ public class TransportLicenseController {
     public TransportLicenseResponse create(@Valid @RequestBody TransportLicenseRequest request) {
         return service.create(request);
     }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Corriger une licence de transport")
+    public TransportLicenseResponse update(@PathVariable Long id, @Valid @RequestBody TransportLicenseRequest request) {
+        return service.update(id, request);
+    }
 }

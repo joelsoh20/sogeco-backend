@@ -3,6 +3,7 @@ package com.sogeco.fleet.modules.insurance;
 import com.sogeco.fleet.common.dto.PageResponse;
 import com.sogeco.fleet.common.exception.BusinessException;
 import com.sogeco.fleet.common.exception.ResourceNotFoundException;
+import com.sogeco.fleet.common.security.EditWindowGuard;
 import com.sogeco.fleet.common.security.SecurityUtils;
 import com.sogeco.fleet.modules.driver.Driver;
 import com.sogeco.fleet.modules.driver.DriverRepository;
@@ -107,6 +108,35 @@ public class TechnicalInspectionService {
                 vehicle.getRegistrationNumber(), SecurityUtils.currentUserEmail(), request.result());
 
         return TechnicalInspectionResponse.from(saved);
+    }
+
+    @Transactional
+    @PreAuthorize("hasAuthority('INSURANCE_UPDATE')")
+    public TechnicalInspectionResponse update(Long id, TechnicalInspectionRequest request) {
+        TechnicalInspection inspection = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Visite technique", id));
+
+        EditWindowGuard.assertEditable(inspection.getCreatedAt(),
+                settingService.getInt("inspection.edit_window_hours", 24), "RG-8-EDIT", "Cette visite technique");
+
+        Vehicle vehicle = vehicleRepository.findById(request.vehicleId())
+                .orElseThrow(() -> new ResourceNotFoundException("Camion", request.vehicleId()));
+
+        LocalDate next = request.nextInspectionDate() != null
+                ? request.nextInspectionDate()
+                : request.inspectionDate().plusMonths(
+                        settingService.getInt("compliance.inspection_interval_months", 12));
+
+        inspection.setVehicle(vehicle);
+        inspection.setCenter(request.partnerId() == null ? null : findCenter(request.partnerId()));
+        inspection.setInspectionDate(request.inspectionDate());
+        inspection.setNextInspectionDate(next);
+        inspection.setResult(request.result());
+        inspection.setDefectsNoted(request.defectsNoted());
+        inspection.setCost(request.cost() == null ? java.math.BigDecimal.ZERO : request.cost());
+
+        log.info("Visite technique de {} corrigee par {}", vehicle.getRegistrationNumber(), SecurityUtils.currentUserEmail());
+        return TechnicalInspectionResponse.from(inspection);
     }
 
     /** Visites arrivant a echeance, pour la tache planifiee d'alerte. */

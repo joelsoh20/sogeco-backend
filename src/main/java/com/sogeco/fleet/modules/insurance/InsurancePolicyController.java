@@ -52,6 +52,12 @@ public class InsurancePolicyController {
         return ResponseEntity.created(URI.create("/api/v1/insurance-policies/" + created.id())).body(created);
     }
 
+    @PutMapping("/{id}")
+    @Operation(summary = "Corriger une police existante")
+    public InsurancePolicyResponse update(@PathVariable Long id, @Valid @RequestBody InsurancePolicyRequest request) {
+        return service.update(id, request);
+    }
+
     @PostMapping("/{id}/renew")
     @Operation(summary = "Renouveler : l'ancienne police passe a EXPIREE, une nouvelle est creee")
     public InsurancePolicyResponse renew(@PathVariable Long id, @Valid @RequestBody InsurancePolicyRequest request) {

@@ -17,4 +17,6 @@ public interface TransportLicenseRepository extends JpaRepository<TransportLicen
     long countByStatus(PolicyStatus status);
 
     boolean existsByReference(String reference);
+
+    boolean existsByReferenceAndIdNot(String reference, Long id);
 }
