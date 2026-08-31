@@ -57,6 +57,11 @@ public record DriverRequest(
         @Schema(description = "Present (meme vide) pour creer un compte de connexion (role Chauffeur) : "
                 + "email fourni, ou vide pour une connexion par nom et prenom. Absent pour ne pas creer de compte. "
                 + "Ignore si userId est fourni.")
-        String accountEmail
+        String accountEmail,
+
+        @Size(min = 5, message = "le mot de passe doit comporter au moins 5 caracteres")
+        @Schema(description = "Mot de passe initial du compte cree. Si absent, un mot de passe aleatoire est genere. "
+                + "Sans effet si userId est fourni (compte deja existant) ou si accountEmail est absent.")
+        String password
 ) {
 }

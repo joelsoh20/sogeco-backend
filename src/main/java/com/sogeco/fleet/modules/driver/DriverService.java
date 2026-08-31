@@ -279,8 +279,13 @@ public class DriverService {
         // accountEmail non nul (meme vide) signale une demande de creation de
         // compte ; une adresse vide se traduit par une connexion nom+prenom.
         if (linkedUser == null && request.accountEmail() != null) {
-            temporaryPassword = generatePassword();
-            linkedUser = createChauffeurAccount(request, temporaryPassword);
+            // Mot de passe saisi par l'administrateur ou le gestionnaire s'il en
+            // fournit un ; genere seulement a defaut, pour ne jamais bloquer la
+            // creation faute de valeur choisie.
+            boolean generated = request.password() == null || request.password().isBlank();
+            String rawPassword = generated ? generatePassword() : request.password();
+            linkedUser = createChauffeurAccount(request, rawPassword);
+            temporaryPassword = generated ? rawPassword : null;
         }
 
         Driver driver = Driver.builder()
