@@ -199,6 +199,28 @@ public class UserService {
         return new PasswordResetResponse(temporary);
     }
 
+    /**
+     * Mot de passe choisi par l'administrateur pour un tiers -- a la
+     * difference de resetPassword() (mot de passe genere), c'est ici
+     * l'administrateur qui saisit la valeur exacte ; rien a renvoyer
+     * puisqu'il la connait deja.
+     */
+    @Transactional
+    @PreAuthorize("hasAuthority('USER_MANAGE')")
+    public void setPassword(Long id, SetUserPasswordRequest request) {
+        User user = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", id));
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setMustChangePassword(false);
+        user.setFailedAttempts(0);
+        user.setLockedUntil(null);
+        refreshTokenService.revokeAll(id);
+
+        auditService.record(SecurityUtils.currentUserEmail(), AuditAction.PASSWORD_SET_BY_ADMIN, ENTITY, id, null);
+        log.info("Mot de passe de {} defini par {}", user.getEmail(), SecurityUtils.currentUserEmail());
+    }
+
     /** Deverrouillage manuel apres echecs successifs. */
     @Transactional
     @PreAuthorize("hasAuthority('USER_MANAGE')")

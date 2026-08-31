@@ -21,6 +21,7 @@ public final class AuditAction {
     public static final String POLICY_CREATED       = "POLICY_CREATED";
     public static final String PASSWORD_CHANGED     = "PASSWORD_CHANGED";
     public static final String PASSWORD_RESET       = "PASSWORD_RESET";
+    public static final String PASSWORD_SET_BY_ADMIN = "PASSWORD_SET_BY_ADMIN";
     public static final String TOTP_ENABLED         = "TOTP_ENABLED";
     public static final String TOTP_DISABLED        = "TOTP_DISABLED";
 

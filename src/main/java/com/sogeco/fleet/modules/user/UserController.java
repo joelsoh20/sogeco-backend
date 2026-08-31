@@ -66,6 +66,13 @@ public class UserController {
         return service.resetPassword(id);
     }
 
+    @PutMapping("/{id}/password")
+    @Operation(summary = "Definir le mot de passe d'un utilisateur (choisi par l'administrateur, pas genere)")
+    public ResponseEntity<Void> setPassword(@PathVariable Long id, @Valid @RequestBody SetUserPasswordRequest request) {
+        service.setPassword(id, request);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/{id}/unlock")
     @Operation(summary = "Deverrouiller un compte apres echecs successifs")
     public ResponseEntity<Void> unlock(@PathVariable Long id) {
