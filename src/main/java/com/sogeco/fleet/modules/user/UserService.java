@@ -103,6 +103,7 @@ public class UserService {
 
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
+        updateEmailIfProvided(user, request.email());
         user.setPhone(request.phone());
         user.setCity(resolveCity(request.cityId()));
 
@@ -234,6 +235,23 @@ public class UserService {
                             "Role inconnu : " + code, HttpStatus.UNPROCESSABLE_CONTENT)));
         }
         return roles;
+    }
+
+    /**
+     * Absente ou vide, l'adresse actuelle n'est pas touchee (reste
+     * possiblement le placeholder genere a la creation). Fournie, elle
+     * la remplace apres verification d'unicite — c'est ainsi qu'un
+     * compte cree sans email reel peut en recevoir un par la suite.
+     */
+    private void updateEmailIfProvided(User user, String email) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        String normalized = email.toLowerCase();
+        if (!normalized.equals(user.getEmail()) && repository.existsByEmailIgnoreCase(normalized)) {
+            throw new DuplicateResourceException("Utilisateur", "email", normalized);
+        }
+        user.setEmail(normalized);
     }
 
     private City resolveCity(Long cityId) {
