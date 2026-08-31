@@ -54,6 +54,10 @@ public class MaintenanceLog extends BaseEntity {
     @Column(name = "odometer_km", precision = 12, scale = 2)
     private BigDecimal odometerKm;
 
+    /** Carburant consomme pour les essais du vehicule pendant le passage au garage. */
+    @Column(name = "test_fuel_liters", precision = 8, scale = 2)
+    private BigDecimal testFuelLiters;
+
     @Builder.Default
     @Column(name = "parts_cost", nullable = false, precision = 15, scale = 2)
     private BigDecimal partsCost = BigDecimal.ZERO;

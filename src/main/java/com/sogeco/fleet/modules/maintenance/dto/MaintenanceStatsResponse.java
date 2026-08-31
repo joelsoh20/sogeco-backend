@@ -17,6 +17,7 @@ public record MaintenanceStatsResponse(
         BigDecimal coutMoyenParIntervention,
         List<CategoryBreakdown> repartitionParCategorie,
         List<GarageComparison> comparatifGarages,
+        List<VehicleBreakdown> repartitionParCamion,
         List<DailyCost> tendanceCouts
 ) {
     public record CategoryBreakdown(MaintenanceCategory category, long count,
@@ -26,6 +27,11 @@ public record MaintenanceStatsResponse(
     public record GarageComparison(Long garageId, String garageName, long interventions,
                                    BigDecimal totalCost, BigDecimal averageCost,
                                    long recurrences, BigDecimal recurrenceRate) {
+    }
+
+    /** Passages au garage et carburant d'essai consomme, par camion. */
+    public record VehicleBreakdown(Long vehicleId, String registrationNumber,
+                                   long passagesGarage, BigDecimal carburantEssaiLitres) {
     }
 
     /** Point de la courbe "Couts de maintenance" de la maquette. */

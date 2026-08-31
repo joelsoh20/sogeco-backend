@@ -34,6 +34,10 @@ public record MaintenanceRequest(
         @PositiveOrZero
         BigDecimal odometerKm,
 
+        @PositiveOrZero(message = "la quantite de carburant ne peut pas etre negative")
+        @Schema(description = "Carburant consomme au garage pour les essais du vehicule pendant cette intervention, facultatif")
+        BigDecimal testFuelLiters,
+
         @Schema(description = "Vrai pour une panne subie, faux pour un entretien planifie")
         Boolean isBreakdown,
 

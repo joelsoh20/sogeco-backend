@@ -151,6 +151,18 @@ public interface MaintenanceLogRepository
            """)
     List<Object[]> aggregateByGarage(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
+    /** Passages au garage et carburant d'essai consomme, par camion. */
+    @Query("""
+           SELECT m.vehicle.id, m.vehicle.registrationNumber, COUNT(m),
+                  COALESCE(SUM(m.testFuelLiters), 0)
+           FROM MaintenanceLog m
+           WHERE m.status <> com.sogeco.fleet.common.enums.MaintenanceStatus.ANNULEE
+             AND m.interventionDate >= :from AND m.interventionDate <= :to
+           GROUP BY m.vehicle.id, m.vehicle.registrationNumber
+           ORDER BY COUNT(m) DESC
+           """)
+    List<Object[]> aggregateByVehicle(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
     long countByStatus(MaintenanceStatus status);
 
     /** Evite un double lavage si le planificateur tourne deux fois le meme jour. */

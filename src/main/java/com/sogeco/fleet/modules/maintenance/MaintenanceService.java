@@ -109,6 +109,7 @@ public class MaintenanceService {
                 .interventionDate(request.interventionDate())
                 .completionDate(request.completionDate())
                 .odometerKm(request.odometerKm() == null ? vehicle.getCurrentKilometers() : request.odometerKm())
+                .testFuelLiters(request.testFuelLiters())
                 .isBreakdown(Boolean.TRUE.equals(request.isBreakdown()))
                 .errorCode(request.errorCode())
                 .nextInterventionDate(request.nextInterventionDate())
@@ -167,6 +168,7 @@ public class MaintenanceService {
         maintenance.setDescription(request.description());
         maintenance.setInterventionDate(request.interventionDate());
         maintenance.setOdometerKm(request.odometerKm());
+        maintenance.setTestFuelLiters(request.testFuelLiters());
         maintenance.setIsBreakdown(Boolean.TRUE.equals(request.isBreakdown()));
         maintenance.setErrorCode(request.errorCode());
         maintenance.setNextInterventionDate(request.nextInterventionDate());

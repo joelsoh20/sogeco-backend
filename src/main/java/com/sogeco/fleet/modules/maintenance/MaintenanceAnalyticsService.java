@@ -74,6 +74,12 @@ public class MaintenanceAnalyticsService {
                                 .setScale(1, RoundingMode.HALF_UP)));
         }
 
+        List<MaintenanceStatsResponse.VehicleBreakdown> vehicles = new ArrayList<>();
+        for (Object[] row : repository.aggregateByVehicle(from, to)) {
+            vehicles.add(new MaintenanceStatsResponse.VehicleBreakdown(
+                    (Long) row[0], (String) row[1], (Long) row[2], (BigDecimal) row[3]));
+        }
+
         // Indicateur de maturite : une flotte bien geree tend vers 70 %.
         BigDecimal preventiveRate = interventions == 0
                 ? BigDecimal.ZERO
@@ -95,6 +101,7 @@ public class MaintenanceAnalyticsService {
                 averageCost,
                 categories,
                 garages,
+                vehicles,
                 trend);
     }
 
