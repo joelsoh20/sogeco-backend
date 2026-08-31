@@ -3,7 +3,6 @@ package com.sogeco.fleet.modules.tracking;
 import com.sogeco.fleet.common.enums.MissionStatus;
 import com.sogeco.fleet.common.enums.VehicleStatus;
 import com.sogeco.fleet.common.exception.ResourceNotFoundException;
-import com.sogeco.fleet.common.security.SecurityUtils;
 import com.sogeco.fleet.modules.agency.Agency;
 import com.sogeco.fleet.modules.city.City;
 import com.sogeco.fleet.modules.fuel.FuelAnalyticsService;
@@ -63,6 +62,12 @@ public class TrackingService {
      * — camion sans boitier ou jamais encore capte — la position donnee
      * par sa mission en cours, moins fiable mais preferable a une absence
      * totale du camion sur la carte.
+     *
+     * Exception volontaire au cloisonnement par ville (RG-13.4) : la carte
+     * temps reel montre tout le parc a tout le monde, y compris un
+     * gestionnaire d'une ville precise — utile pour suivre un camion qui
+     * entre ou sort de sa zone. Le cloisonnement reste actif ailleurs
+     * (Carburant, Maintenance, Alertes, Audit...).
      */
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('TRACKING_READ')")
@@ -71,7 +76,7 @@ public class TrackingService {
                 .collect(Collectors.toMap(LivePosition::vehicleId, Function.identity(), (a, b) -> a));
         Map<Long, VehicleAssignment> assignments = activeAssignmentsByVehicle();
 
-        return vehicleRepository.findActiveForCity(SecurityUtils.currentCityId().orElse(null)).stream()
+        return vehicleRepository.findByActiveTrueOrderByRegistrationNumberAsc().stream()
                 .map(vehicle -> resolvePosition(vehicle, cached.get(vehicle.getId()), assignments.get(vehicle.getId())))
                 .filter(java.util.Objects::nonNull)
                 .toList();
@@ -266,7 +271,6 @@ public class TrackingService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('TRACKING_HISTORY_READ')")
     public TrackHistoryResponse history(Long vehicleId, Instant from, Instant to) {
-        findVehicle(vehicleId); // verifie la ville geree ; leve ResourceNotFoundException sinon
         return TrackHistoryResponse.of(vehicleId, from, to,
                 positionRepository.findHistory(vehicleId, from, to));
     }
@@ -274,7 +278,6 @@ public class TrackingService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('TRACKING_READ')")
     public Optional<VehicleDiagnostic> latestDiagnostic(Long vehicleId) {
-        findVehicle(vehicleId); // verifie la ville geree ; leve ResourceNotFoundException sinon
         return diagnosticRepository.findLatest(vehicleId);
     }
 
@@ -294,7 +297,7 @@ public class TrackingService {
         long offline = 0;
         long maintenance = 0;
 
-        List<Vehicle> vehicles = vehicleRepository.findActiveForCity(SecurityUtils.currentCityId().orElse(null));
+        List<Vehicle> vehicles = vehicleRepository.findByActiveTrueOrderByRegistrationNumberAsc();
         for (Vehicle vehicle : vehicles) {
             if (vehicle.getStatus() == VehicleStatus.EN_MAINTENANCE
                     || vehicle.getStatus() == VehicleStatus.EN_PANNE) {
@@ -336,18 +339,8 @@ public class TrackingService {
                 .orElse(null);
     }
 
-    /**
-     * Un camion d'une autre ville se comporte comme s'il n'existait pas
-     * (meme exception que l'id inconnu) : jamais de 403 qui revelerait
-     * qu'il existe ailleurs (RG-13.4).
-     */
     private Vehicle findVehicle(Long id) {
-        Vehicle vehicle = vehicleRepository.findById(id)
+        return vehicleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Camion", id));
-        Long cityId = SecurityUtils.currentCityId().orElse(null);
-        if (cityId != null && (vehicle.getCity() == null || !cityId.equals(vehicle.getCity().getId()))) {
-            throw new ResourceNotFoundException("Camion", id);
-        }
-        return vehicle;
     }
 }
