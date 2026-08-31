@@ -43,6 +43,10 @@ public interface MaintenanceLogRepository
     @EntityGraph(attributePaths = {"vehicle", "garage"})
     Page<MaintenanceLog> findAllBy(Pageable pageable);
 
+    /** Meme liste, restreinte a la ville du gestionnaire (RG-13.4). */
+    @EntityGraph(attributePaths = {"vehicle", "garage"})
+    Page<MaintenanceLog> findAllByVehicle_City_Id(Long cityId, Pageable pageable);
+
     @EntityGraph(attributePaths = {"vehicle", "garage", "items"})
     Optional<MaintenanceLog> findWithItemsById(Long id);
 
@@ -51,6 +55,10 @@ public interface MaintenanceLogRepository
 
     @EntityGraph(attributePaths = {"vehicle", "garage"})
     List<MaintenanceLog> findByStatusOrderByInterventionDateAsc(MaintenanceStatus status);
+
+    @EntityGraph(attributePaths = {"vehicle", "garage"})
+    List<MaintenanceLog> findByStatusAndVehicle_City_IdOrderByInterventionDateAsc(
+            MaintenanceStatus status, Long cityId);
 
     /**
      * Retour en atelier : meme camion, meme categorie, dans la fenetre

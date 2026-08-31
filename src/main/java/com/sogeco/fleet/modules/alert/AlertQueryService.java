@@ -5,6 +5,7 @@ import com.sogeco.fleet.common.enums.AlertLevel;
 import com.sogeco.fleet.common.enums.AlertStatus;
 import com.sogeco.fleet.common.enums.AlertType;
 import com.sogeco.fleet.common.exception.ResourceNotFoundException;
+import com.sogeco.fleet.common.security.SecurityUtils;
 import com.sogeco.fleet.modules.alert.dto.*;
 import com.sogeco.fleet.modules.setting.SettingService;
 import lombok.RequiredArgsConstructor;
@@ -35,21 +36,28 @@ public class AlertQueryService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('ALERT_READ')")
     public PageResponse<AlertResponse> list(Pageable pageable) {
-        return PageResponse.from(repository.findAllBy(pageable), AlertResponse::from);
+        var page = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findAllByVehicle_City_Id(cityId, pageable))
+                .orElseGet(() -> repository.findAllBy(pageable));
+        return PageResponse.from(page, AlertResponse::from);
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('ALERT_READ')")
     public PageResponse<AlertResponse> listByLevel(AlertLevel level, Pageable pageable) {
-        return PageResponse.from(
-                repository.findByLevelOrderByTriggeredAtDesc(level, pageable), AlertResponse::from);
+        var page = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findByLevelAndVehicle_City_IdOrderByTriggeredAtDesc(level, cityId, pageable))
+                .orElseGet(() -> repository.findByLevelOrderByTriggeredAtDesc(level, pageable));
+        return PageResponse.from(page, AlertResponse::from);
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('ALERT_READ')")
     public List<AlertResponse> recent() {
-        return repository.findTop10ByStatusInOrderByTriggeredAtDesc(OPEN)
-                .stream().map(AlertResponse::from).toList();
+        List<Alert> alerts = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findTop10ByStatusInAndVehicle_City_IdOrderByTriggeredAtDesc(OPEN, cityId))
+                .orElseGet(() -> repository.findTop10ByStatusInOrderByTriggeredAtDesc(OPEN));
+        return alerts.stream().map(AlertResponse::from).toList();
     }
 
     /**
@@ -67,8 +75,15 @@ public class AlertQueryService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('ALERT_READ')")
     public AlertResponse get(Long id) {
-        return AlertResponse.from(repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Alerte", id)));
+        Alert alert = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Alerte", id));
+
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        if (cityId != null && (alert.getVehicle() == null || alert.getVehicle().getCity() == null
+                || !cityId.equals(alert.getVehicle().getCity().getId()))) {
+            throw new ResourceNotFoundException("Alerte", id);
+        }
+        return AlertResponse.from(alert);
     }
 
     @Transactional(readOnly = true)

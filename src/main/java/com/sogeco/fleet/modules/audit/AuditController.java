@@ -1,6 +1,7 @@
 package com.sogeco.fleet.modules.audit;
 
 import com.sogeco.fleet.common.dto.PageResponse;
+import com.sogeco.fleet.common.security.SecurityUtils;
 import com.sogeco.fleet.modules.audit.dto.AuditLogResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -26,7 +27,10 @@ public class AuditController {
     @Operation(summary = "Consulter le journal d'audit")
     public PageResponse<AuditLogResponse> list(
             @PageableDefault(size = 50, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return PageResponse.from(repository.findAll(pageable), AuditLogResponse::from);
+        var page = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findByUserCityId(cityId, pageable))
+                .orElseGet(() -> repository.findAll(pageable));
+        return PageResponse.from(page, AuditLogResponse::from);
     }
 
     @GetMapping("/entity")
@@ -35,8 +39,9 @@ public class AuditController {
     public PageResponse<AuditLogResponse> byEntity(@RequestParam String entityType,
                                                    @RequestParam Long entityId,
                                                    @PageableDefault(size = 50) Pageable pageable) {
-        return PageResponse.from(
-                repository.findByEntityTypeAndEntityIdOrderByCreatedAtDesc(entityType, entityId, pageable),
-                AuditLogResponse::from);
+        var page = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findByEntityTypeAndEntityIdAndUserCityId(entityType, entityId, cityId, pageable))
+                .orElseGet(() -> repository.findByEntityTypeAndEntityIdOrderByCreatedAtDesc(entityType, entityId, pageable));
+        return PageResponse.from(page, AuditLogResponse::from);
     }
 }

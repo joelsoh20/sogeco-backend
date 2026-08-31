@@ -20,6 +20,7 @@ import com.sogeco.fleet.modules.vehicle.Vehicle;
 import com.sogeco.fleet.modules.vehicle.VehicleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -69,21 +70,41 @@ public class FuelService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('FUEL_READ')")
     public PageResponse<FuelLogResponse> list(Pageable pageable) {
-        return PageResponse.from(repository.findAllBy(pageable), FuelLogResponse::from);
+        Page<FuelLog> page = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findAllByVehicle_City_Id(cityId, pageable))
+                .orElseGet(() -> repository.findAllBy(pageable));
+        return PageResponse.from(page, FuelLogResponse::from);
     }
 
+    /**
+     * Le camion lui-meme n'est pas verifie ici : un gestionnaire qui
+     * consulte un camion d'une autre ville par son id obtient une liste
+     * vide (aucun plein ne remonte), jamais une erreur revelant que ce
+     * camion existe ailleurs.
+     */
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('FUEL_READ')")
     public List<FuelLogResponse> listForVehicle(Long vehicleId) {
-        return repository.findByVehicleIdOrderByFuelDatetimeDesc(vehicleId)
-                .stream().map(FuelLogResponse::from).toList();
+        return repository.findByVehicleIdOrderByFuelDatetimeDesc(vehicleId).stream()
+                .filter(this::inCurrentScope)
+                .map(FuelLogResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('FUEL_READ')")
     public List<FuelLogResponse> anomalies() {
-        return repository.findByStatusOrderByFuelDatetimeDesc(FuelLogStatus.ANOMALIE)
-                .stream().map(FuelLogResponse::from).toList();
+        List<FuelLog> logs = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findByStatusAndVehicle_City_IdOrderByFuelDatetimeDesc(
+                        FuelLogStatus.ANOMALIE, cityId))
+                .orElseGet(() -> repository.findByStatusOrderByFuelDatetimeDesc(FuelLogStatus.ANOMALIE));
+        return logs.stream().map(FuelLogResponse::from).toList();
+    }
+
+    /** Vrai si le camion du plein est dans la ville geree, ou si l'appelant voit tout (admin). */
+    private boolean inCurrentScope(FuelLog log) {
+        return SecurityUtils.currentCityId()
+                .map(cityId -> log.getVehicle().getCity() != null && cityId.equals(log.getVehicle().getCity().getId()))
+                .orElse(true);
     }
 
     // ------------------------------------------------------------------

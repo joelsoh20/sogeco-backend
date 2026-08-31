@@ -19,6 +19,10 @@ public interface FuelLogRepository extends JpaRepository<FuelLog, Long>, JpaSpec
     @EntityGraph(attributePaths = {"vehicle", "driver", "station"})
     Page<FuelLog> findAllBy(Pageable pageable);
 
+    /** Meme liste, restreinte a la ville du gestionnaire (RG-13.4). */
+    @EntityGraph(attributePaths = {"vehicle", "driver", "station"})
+    Page<FuelLog> findAllByVehicle_City_Id(Long cityId, Pageable pageable);
+
     @EntityGraph(attributePaths = {"vehicle", "driver", "station"})
     List<FuelLog> findByVehicleIdOrderByFuelDatetimeDesc(Long vehicleId);
 
@@ -236,6 +240,10 @@ public interface FuelLogRepository extends JpaRepository<FuelLog, Long>, JpaSpec
 
     @EntityGraph(attributePaths = {"vehicle", "driver"})
     List<FuelLog> findByStatusOrderByFuelDatetimeDesc(FuelLogStatus status);
+
+    /** Meme liste, restreinte a la ville du gestionnaire (RG-13.4). */
+    @EntityGraph(attributePaths = {"vehicle", "driver"})
+    List<FuelLog> findByStatusAndVehicle_City_IdOrderByFuelDatetimeDesc(FuelLogStatus status, Long cityId);
 
     /** Consommation moyenne d'un chauffeur, pour la notation. */
     @Query("""

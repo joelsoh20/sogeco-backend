@@ -1,6 +1,7 @@
 package com.sogeco.fleet.modules.fuel;
 
 import com.sogeco.fleet.common.enums.FuelLogStatus;
+import com.sogeco.fleet.common.security.SecurityUtils;
 import com.sogeco.fleet.modules.driver.dto.DriverFuelEconomyResponse;
 import com.sogeco.fleet.modules.fuel.dto.FuelStatsResponse;
 import com.sogeco.fleet.modules.fuel.dto.TankLevelResponse;
@@ -41,6 +42,10 @@ public class FuelAnalyticsService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('FUEL_READ')")
     public FuelStatsResponse stats(LocalDate from, LocalDate to, Long cityId) {
+        // Un gestionnaire ne peut jamais elargir sa vue en passant la ville
+        // d'un autre : sa propre ville prevaut toujours sur le parametre
+        // recu. Vide pour un administrateur, qui garde le parametre du client.
+        cityId = SecurityUtils.currentCityId().orElse(cityId);
         ZoneId zone = ZoneId.of(settingService.getString("company.timezone", "Africa/Douala"));
         Instant start = from.atStartOfDay(zone).toInstant();
         Instant end = to.plusDays(1).atStartOfDay(zone).toInstant();
@@ -145,6 +150,7 @@ public class FuelAnalyticsService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('FUEL_READ')")
     public List<TankLevelResponse> tankLevels(Long cityId) {
+        cityId = SecurityUtils.currentCityId().orElse(cityId);
         return vehicleRepository.findActiveForCity(cityId).stream()
                 .map(this::tankLevelFor)
                 .toList();
@@ -211,6 +217,7 @@ public class FuelAnalyticsService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('FUEL_READ')")
     public List<WeeklyRefuelResponse> weeklyRefuel(LocalDate from, LocalDate to, Long cityId) {
+        cityId = SecurityUtils.currentCityId().orElse(cityId);
         return vehicleRepository.findActiveForCity(cityId).stream()
                 .map(vehicle -> {
                     BigDecimal distance = dailyStatRepository.totalDistance(vehicle.getId(), from, to);

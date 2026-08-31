@@ -20,8 +20,15 @@ public interface AlertRepository extends JpaRepository<Alert, Long>, JpaSpecific
     @EntityGraph(attributePaths = {"vehicle", "driver", "rule"})
     Page<Alert> findAllBy(Pageable pageable);
 
+    /** Meme liste, restreinte a la ville du gestionnaire (RG-13.4) — n'inclut donc pas les alertes sans camion rattache. */
+    @EntityGraph(attributePaths = {"vehicle", "driver", "rule"})
+    Page<Alert> findAllByVehicle_City_Id(Long cityId, Pageable pageable);
+
     @EntityGraph(attributePaths = {"vehicle", "driver", "rule"})
     Page<Alert> findByLevelOrderByTriggeredAtDesc(AlertLevel level, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"vehicle", "driver", "rule"})
+    Page<Alert> findByLevelAndVehicle_City_IdOrderByTriggeredAtDesc(AlertLevel level, Long cityId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"vehicle", "driver"})
     List<Alert> findByStatusInOrderByTriggeredAtDesc(List<AlertStatus> statuses, Pageable pageable);
@@ -96,6 +103,10 @@ public interface AlertRepository extends JpaRepository<Alert, Long>, JpaSpecific
 
     @EntityGraph(attributePaths = {"vehicle", "driver"})
     List<Alert> findTop10ByStatusInOrderByTriggeredAtDesc(List<AlertStatus> statuses);
+
+    @EntityGraph(attributePaths = {"vehicle", "driver"})
+    List<Alert> findTop10ByStatusInAndVehicle_City_IdOrderByTriggeredAtDesc(
+            List<AlertStatus> statuses, Long cityId);
 
     /** Alertes recentes liees a un chauffeur precis — ecran Chauffeurs et Performance. */
     @EntityGraph(attributePaths = {"vehicle", "driver"})

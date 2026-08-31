@@ -52,8 +52,10 @@ public class MaintenanceService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('MAINTENANCE_READ')")
     public PageResponse<MaintenanceResponse> list(Pageable pageable) {
-        return PageResponse.from(repository.findAllBy(pageable),
-                log -> MaintenanceResponse.from(log, false));
+        var page = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findAllByVehicle_City_Id(cityId, pageable))
+                .orElseGet(() -> repository.findAllBy(pageable));
+        return PageResponse.from(page, log -> MaintenanceResponse.from(log, false));
     }
 
     @Transactional(readOnly = true)
@@ -63,18 +65,30 @@ public class MaintenanceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Intervention", id)), true);
     }
 
+    /** Camion d'une autre ville : liste vide, jamais une erreur qui revelerait son existence. */
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('MAINTENANCE_READ')")
     public List<MaintenanceResponse> forVehicle(Long vehicleId) {
-        return repository.findByVehicleIdOrderByInterventionDateDesc(vehicleId)
-                .stream().map(log -> MaintenanceResponse.from(log, false)).toList();
+        return repository.findByVehicleIdOrderByInterventionDateDesc(vehicleId).stream()
+                .filter(this::inCurrentScope)
+                .map(log -> MaintenanceResponse.from(log, false)).toList();
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('MAINTENANCE_READ')")
     public List<MaintenanceResponse> planned() {
-        return repository.findByStatusOrderByInterventionDateAsc(MaintenanceStatus.PLANIFIEE)
-                .stream().map(log -> MaintenanceResponse.from(log, false)).toList();
+        List<MaintenanceLog> logs = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findByStatusAndVehicle_City_IdOrderByInterventionDateAsc(
+                        MaintenanceStatus.PLANIFIEE, cityId))
+                .orElseGet(() -> repository.findByStatusOrderByInterventionDateAsc(MaintenanceStatus.PLANIFIEE));
+        return logs.stream().map(log -> MaintenanceResponse.from(log, false)).toList();
+    }
+
+    /** Vrai si le camion de l'intervention est dans la ville geree, ou si l'appelant voit tout (admin). */
+    private boolean inCurrentScope(MaintenanceLog log) {
+        return SecurityUtils.currentCityId()
+                .map(cityId -> log.getVehicle().getCity() != null && cityId.equals(log.getVehicle().getCity().getId()))
+                .orElse(true);
     }
 
     // ------------------------------------------------------------------
