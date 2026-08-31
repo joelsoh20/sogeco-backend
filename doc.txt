@@ -79,5 +79,11 @@ Puis surveille en direct :
 sudo tail -f /opt/traccar/logs/tracker-server.log
 
 Depuis PowerShell : Test-NetConnection -ComputerName 13.53.244.90 -Port 5009 — vérifie TcpTestSucceeded : True.
+http://13.53.244.90:8082/
 
 ErLh9UNSi57jWSOu
+
+Configurer le boîtier (carte SIM, adresse du serveur Traccar 13.53.244.90 + le bon port selon son protocole — 5001, 5005, 5009 ou 5055).
+Vérifier sur Traccar (13.53.244.90:8082 → menu Appareils) — grâce à database.registerUnknown=true déjà activé, le boîtier apparaît automatiquement dès sa première trame, même sans IMEI déclaré à l'avance. Pas besoin de le créer manuellement côté Traccar.
+Récupérer l'IMEI — c'est le champ Identifiant affiché sur la fiche de l'appareil dans Traccar.
+Coller cet IMEI dans l'app — champ "Identifiant boîtier GPS" (deviceId) sur la fiche du camion concerné, dans le fleet-manager.

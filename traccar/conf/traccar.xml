@@ -23,7 +23,7 @@
          calculer une signature HMAC par message. L'authentification du webhook
          repose donc sur ce secret partage, comparee a temps constant cote
          application, plus une restriction reseau. Voir section 7. -->
-    <entry key='forward.header'>X-Webhook-Secret: CHANGEZ_CE_SECRET_PARTAGE_SOGECO_2026</entry>
+    <entry key='forward.header'>476yg35ftyuvte346y6g08bf64dd3s5</entry>
 
     <!-- ============ Relais des evenements ============ -->
     <!-- Alarmes du boitier : exces de vitesse, coupure d'alimentation,
@@ -31,7 +31,7 @@
     <entry key='event.forward.enable'>true</entry>
     <entry key='event.forward.type'>json</entry>
     <entry key='event.forward.url'>http://host.docker.internal:8080/api/v1/webhooks/telematics/traccar-events</entry>
-    <entry key='event.forward.header'>X-Webhook-Secret: CHANGEZ_CE_SECRET_PARTAGE_SOGECO_2026</entry>
+    <entry key='event.forward.header'>hbd87b4y387en239e2d39uei383h9348438hrdb83</entry>
 
     <!-- ============ Enregistrement automatique ============ -->
     <!-- Cree l'appareil a la premiere connexion, meme si l'IMEI n'est pas
