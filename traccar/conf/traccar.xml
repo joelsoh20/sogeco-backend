@@ -49,13 +49,38 @@
          encore declare. Pratique en phase d'identification : le boitier
          apparait tout seul dans l'interface. A DESACTIVER en production. -->
     <entry key='database.registerUnknown'>true</entry>
-    <!-- meiligao sur son port standard 5009 (celui attendu par les boitiers
-         LT08 et compatibles, cable en dur cote materiel) : etait par erreur
-         sur 5005, port sans usage reel ici. h02 retire, aucun boitier de ce
-         type en service. -->
-    <entry key='protocols.enable'>osmand,gps103,meiligao</entry>
+    <!-- Eventail large des marques de boitiers GPS les plus courantes, pour
+         accepter un boitier sans configuration prealable au cas par cas.
+         Chaque port est celui documente comme port par defaut de Traccar
+         pour ce protocole (verifie contre les classes reellement presentes
+         dans l'image traccar/traccar:latest, pas suppose) -- un boitier dont
+         le firmware pointe vers ce port "de reference" fonctionne donc sans
+         reconfiguration. meiligao (LT08 et compatibles) sur son port
+         standard 5009, comme confirme precedemment. -->
+    <entry key='protocols.enable'>osmand,gps103,meiligao,h02,gt06,gt02,tk103,tk102,gl100,gl200,suntech,teltonika,meitrack,cellocator,xexun,totem,ruptela,calamp,atrack,watch,eelink,globalsat,gosafe,huabao</entry>
     <entry key='gps103.port'>5001</entry>
+    <entry key='tk103.port'>5002</entry>
+    <entry key='gl100.port'>5003</entry>
+    <entry key='gl200.port'>5004</entry>
+    <entry key='xexun.port'>5006</entry>
+    <entry key='totem.port'>5007</entry>
     <entry key='meiligao.port'>5009</entry>
+    <entry key='suntech.port'>5011</entry>
+    <entry key='h02.port'>5013</entry>
+    <entry key='huabao.port'>5015</entry>
+    <entry key='meitrack.port'>5020</entry>
+    <entry key='gt02.port'>5022</entry>
+    <entry key='gt06.port'>5023</entry>
+    <entry key='globalsat.port'>5043</entry>
+    <entry key='atrack.port'>5044</entry>
+    <entry key='ruptela.port'>5046</entry>
+    <entry key='eelink.port'>5064</entry>
+    <entry key='gosafe.port'>5078</entry>
+    <entry key='calamp.port'>5082</entry>
+    <entry key='watch.port'>5093</entry>
+    <entry key='cellocator.port'>5033</entry>
+    <entry key='tk102.port'>5036</entry>
+    <entry key='teltonika.port'>5027</entry>
 
     <!-- ============ Allegements ============ -->
     <!-- Le geocodage inverse et la geolocalisation sont assures par notre

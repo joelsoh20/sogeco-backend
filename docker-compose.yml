@@ -57,6 +57,51 @@ services:
       # standard 5009, cable en dur cote materiel sur ces boitiers)
       - "5009:5009"
       - "5009:5009/udp"
+      # Eventail large des marques de boitiers GPS les plus courantes -- un
+      # port par protocole, voir le commentaire dans traccar.xml. Ports
+      # laisses au repos si aucun boitier ne s'y connecte : aucun cout.
+      - "5002:5002"     # tk103
+      - "5002:5002/udp"
+      - "5003:5003"     # gl100 (Queclink)
+      - "5003:5003/udp"
+      - "5004:5004"     # gl200 (Queclink)
+      - "5004:5004/udp"
+      - "5006:5006"     # xexun
+      - "5006:5006/udp"
+      - "5007:5007"     # totem
+      - "5007:5007/udp"
+      - "5011:5011"     # suntech
+      - "5011:5011/udp"
+      - "5013:5013"     # h02
+      - "5013:5013/udp"
+      - "5015:5015"     # huabao (JT/T 808)
+      - "5015:5015/udp"
+      - "5020:5020"     # meitrack
+      - "5020:5020/udp"
+      - "5022:5022"     # gt02
+      - "5022:5022/udp"
+      - "5023:5023"     # gt06
+      - "5023:5023/udp"
+      - "5027:5027"     # teltonika
+      - "5027:5027/udp"
+      - "5033:5033"     # cellocator
+      - "5033:5033/udp"
+      - "5036:5036"     # tk102
+      - "5036:5036/udp"
+      - "5043:5043"     # globalsat
+      - "5043:5043/udp"
+      - "5044:5044"     # atrack
+      - "5044:5044/udp"
+      - "5046:5046"     # ruptela
+      - "5046:5046/udp"
+      - "5064:5064"     # eelink
+      - "5064:5064/udp"
+      - "5078:5078"     # gosafe
+      - "5078:5078/udp"
+      - "5082:5082"     # calamp
+      - "5082:5082/udp"
+      - "5093:5093"     # watch (montres GPS)
+      - "5093:5093/udp"
     volumes:
       - ./traccar/conf:/opt/traccar/conf
       - traccar_data:/opt/traccar/data
