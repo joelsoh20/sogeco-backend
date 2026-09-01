@@ -301,8 +301,9 @@ public class MissionService {
         mission.setDestinationAgency(request.destinationAgencyId() == null ? null
                 : agencyRepository.findById(request.destinationAgencyId()).orElse(null));
         mission.setRoute(findReferenceRoute(request.originCityId(), request.destinationCityId()));
-        mission.setDepartureAddress(request.departureAddress());
-        mission.setDestinationAddress(request.destinationAddress());
+        // Retirees du formulaire (ville/quartier structures les remplacent) : ne plus les
+        // ecraser a null a chaque modification, pour ne pas effacer une valeur historique
+        // saisie avant leur retrait.
         mission.setPlannedStart(request.plannedStart());
         mission.setPlannedArrival(request.plannedArrival());
         mission.setCargoDescription(request.cargoDescription());
