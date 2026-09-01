@@ -49,10 +49,13 @@
          encore declare. Pratique en phase d'identification : le boitier
          apparait tout seul dans l'interface. A DESACTIVER en production. -->
     <entry key='database.registerUnknown'>true</entry>
-    <entry key='protocols.enable'>osmand,gps103,meiligao,h02</entry>
+    <!-- meiligao sur son port standard 5009 (celui attendu par les boitiers
+         LT08 et compatibles, cable en dur cote materiel) : etait par erreur
+         sur 5005, port sans usage reel ici. h02 retire, aucun boitier de ce
+         type en service. -->
+    <entry key='protocols.enable'>osmand,gps103,meiligao</entry>
     <entry key='gps103.port'>5001</entry>
-    <entry key='meiligao.port'>5005</entry>
-    <entry key='h02.port'>5009</entry>
+    <entry key='meiligao.port'>5009</entry>
 
     <!-- ============ Allegements ============ -->
     <!-- Le geocodage inverse et la geolocalisation sont assures par notre

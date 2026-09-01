@@ -53,10 +53,8 @@ services:
       # Protocole gps103 : boitiers GPS103/TK102 et compatibles
       - "5001:5001"
       - "5001:5001/udp"
-      # Protocole meiligao : boitiers Meiligao et compatibles
-      - "5005:5005"
-      - "5005:5005/udp"
-      # Protocole h02 : boitiers H02 et compatibles
+      # Protocole meiligao : boitiers LT08, Meiligao et compatibles (port
+      # standard 5009, cable en dur cote materiel sur ces boitiers)
       - "5009:5009"
       - "5009:5009/udp"
     volumes:
