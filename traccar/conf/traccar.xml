@@ -22,8 +22,19 @@
     <!-- Traccar ne sait envoyer que des en-tetes STATIQUES : il ne peut pas
          calculer une signature HMAC par message. L'authentification du webhook
          repose donc sur ce secret partage, comparee a temps constant cote
-         application, plus une restriction reseau. Voir section 7. -->
-    <entry key='forward.header'>476yg35ftyuvte346y6g08bf64dd3s5</entry>
+         application, plus une restriction reseau. Voir section 7.
+
+         Format attendu par Traccar : "Nom-Entete: valeur" (documente sur
+         traccar.org/configuration-file) -- une valeur brute sans nom
+         d'en-tete, comme c'etait le cas ici, ne produit jamais l'en-tete
+         X-Webhook-Secret attendu par TelematicsWebhookController, donc
+         chaque trame etait rejetee en 401 : les positions n'atteignaient
+         jamais gps_positions, d'ou le "hors ligne" cote application malgre
+         un appareil bien connecte cote Traccar. Meme secret ici et sur
+         event.forward.header ci-dessous : le backend ne connait qu'UN seul
+         secret (system_settings.telematics.webhook_secret) pour les deux
+         routes de webhook. -->
+    <entry key='forward.header'>X-Webhook-Secret: Primce2005@</entry>
 
     <!-- ============ Relais des evenements ============ -->
     <!-- Alarmes du boitier : exces de vitesse, coupure d'alimentation,
@@ -31,7 +42,7 @@
     <entry key='event.forward.enable'>true</entry>
     <entry key='event.forward.type'>json</entry>
     <entry key='event.forward.url'>http://host.docker.internal:8080/api/v1/webhooks/telematics/traccar-events</entry>
-    <entry key='event.forward.header'>hbd87b4y387en239e2d39uei383h9348438hrdb83</entry>
+    <entry key='event.forward.header'>X-Webhook-Secret: Primce2005@</entry>
 
     <!-- ============ Enregistrement automatique ============ -->
     <!-- Cree l'appareil a la premiere connexion, meme si l'IMEI n'est pas
