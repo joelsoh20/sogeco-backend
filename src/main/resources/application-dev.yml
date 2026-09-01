@@ -5,7 +5,7 @@
 # application.yml) : actif des que SPRING_PROFILES_ACTIVE n'est pas
 # positionne explicitement — y compris dans un conteneur ou sur un
 # hebergeur, si on oublie de le definir. D'ou les placeholders ${...}
-# ci-dessous plutot que des valeurs figees : sans eux, DB_HOST/REDIS_HOST
+# ci-dessous plutot que des valeurs figees : sans eux, DB_HOST/REDIS_URL
 # seraient ignores partout sauf en environnement "prod", et le meme
 # oubli reproduirait exactement l'erreur "connection refused" locale
 # (connexion a localhost au lieu de l'hote vise).
@@ -34,9 +34,11 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:Primce2005@}
+      # %40 = "@" encode : le mot de passe local en contient un, et une URL
+      # redis://[:password@]host — deux "@" d'affilee, sinon ambigu pour
+      # le parseur (host resolu comme "<unresolved>", cause du meme bug
+      # que celui documente sur application.yml).
+      url: ${REDIS_URL:redis://:Primce2005%40@localhost:6379}
 
 logging:
   level:

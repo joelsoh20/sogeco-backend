@@ -43,9 +43,13 @@ spring:
     redis:
       repositories:
         enabled: false
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:sogeco_redis_password}
+      # URL unique plutot que host/port/password separes : les hebergeurs
+      # (Render Key Value, Upstash...) fournissent une seule chaine
+      # "redis://[:password@]host:port" — la faire correspondre a REDIS_HOST
+      # laissait echouer chaque connexion silencieusement (voir
+      # PositionCacheService, catch RuntimeException) sans jamais remonter
+      # d'erreur visible : le kilometrage restait bloque a zero.
+      url: ${REDIS_URL:redis://localhost:6379}
       timeout: 2000ms
 
   # Spring Boot 4 embarque Jackson 3 (package tools.jackson) :
