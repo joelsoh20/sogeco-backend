@@ -66,13 +66,17 @@ public class FuelController {
     }
 
     @GetMapping("/stats")
-    @Operation(summary = "Compteurs et repartition par camion, optionnellement restreints a une ville")
+    @Operation(summary = "Compteurs et repartition par camion, optionnellement restreints a une ville",
+            description = "Par defaut, 30 derniers jours glissants -- pas le mois calendaire : l'ecran n'offre "
+                    + "aucun selecteur de periode, un simple 1er du mois ferait disparaitre sans prevenir un plein "
+                    + "saisi la veille du changement de mois (vecu en prod le 31 aout, invisible des le 1er "
+                    + "septembre).")
     public FuelStatsResponse stats(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long cityId) {
-        LocalDate start = from == null ? LocalDate.now().withDayOfMonth(1) : from;
         LocalDate end = to == null ? LocalDate.now() : to;
+        LocalDate start = from == null ? end.minusDays(30) : from;
         return analyticsService.stats(start, end, cityId);
     }
 
