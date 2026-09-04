@@ -159,6 +159,7 @@ public class FuelService {
                 .status(FuelLogStatus.VALIDE)
                 .build();
 
+        log.setDistanceKm(distance);
         log.setComputedConsumption(log.computeConsumption(distance));
 
         detectAnomalies(log, vehicle);
@@ -210,6 +211,7 @@ public class FuelService {
         existing.setOdometerAfter(request.odometerAfter());
         existing.setFullTank(request.fullTank() == null || request.fullTank());
         existing.setReceiptNumber(request.receiptNumber());
+        existing.setDistanceKm(distance);
         existing.setComputedConsumption(existing.computeConsumption(distance));
         existing.setStatus(FuelLogStatus.VALIDE);
         existing.setAnomalyReason(null);
@@ -338,12 +340,9 @@ public class FuelService {
             return;
         }
 
-        BigDecimal average = history.stream()
-                .map(FuelLog::getComputedConsumption)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(history.size()), 2, RoundingMode.HALF_UP);
+        BigDecimal average = average(history);
 
-        if (average.signum() == 0) {
+        if (average == null || average.signum() == 0) {
             return;
         }
 
@@ -402,15 +401,36 @@ public class FuelService {
         return average(loaded);
     }
 
-    /** Nulle si {@code logs} est vide -- une moyenne sur zero plein n'a pas de sens. */
+    /**
+     * Moyenne par somme (litres/km), pas moyenne simple des ratios par
+     * plein. Une moyenne simple ferait autant peser un petit
+     * ravitaillement partiel sur quelques km qu'un plein sur une longue
+     * distance, alors que le premier est surtout du bruit -- en
+     * pratique, un plein complet a chaque passage est l'exception, pas
+     * la regle, et certains camions ne sont jamais remplis a fond. La
+     * somme des litres achetes divisee par la somme des km parcourus
+     * reste juste dans ce cas : elle ne suppose jamais que le reservoir
+     * est plein a un instant precis, seulement que sur un historique
+     * suffisant, le carburant achete finit par correspondre au
+     * carburant consomme.
+     *
+     * Nulle si aucun des pleins de {@code logs} n'a de distance connue.
+     */
     private BigDecimal average(List<FuelLog> logs) {
-        if (logs.isEmpty()) {
+        BigDecimal totalLiters = BigDecimal.ZERO;
+        BigDecimal totalDistance = BigDecimal.ZERO;
+        for (FuelLog fuelLog : logs) {
+            if (fuelLog.getDistanceKm() == null || fuelLog.getDistanceKm().signum() <= 0) {
+                continue;
+            }
+            totalLiters = totalLiters.add(fuelLog.getQuantityLiters());
+            totalDistance = totalDistance.add(fuelLog.getDistanceKm());
+        }
+        if (totalDistance.signum() <= 0) {
             return null;
         }
-        return logs.stream()
-                .map(FuelLog::getComputedConsumption)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(logs.size()), 2, RoundingMode.HALF_UP);
+        return totalLiters.multiply(BigDecimal.valueOf(100))
+                .divide(totalDistance, 2, RoundingMode.HALF_UP);
     }
 
     /** Rattachement automatique a la mission en cours (RG-6.9). */

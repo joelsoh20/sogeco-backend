@@ -82,6 +82,15 @@ public class FuelLog extends BaseEntity {
     @Column(name = "computed_consumption", precision = 6, scale = 2)
     private BigDecimal computedConsumption;
 
+    /**
+     * Distance retenue (GPS, ou odometre a defaut) pour ce plein -- la
+     * meme valeur qui a servi a calculer computedConsumption ci-dessus.
+     * Persistee pour permettre une moyenne par somme (litres/km) au
+     * niveau du camion, cf. FuelService.average().
+     */
+    @Column(name = "distance_km", precision = 10, scale = 3)
+    private BigDecimal distanceKm;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
