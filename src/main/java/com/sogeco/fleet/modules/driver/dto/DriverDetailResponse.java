@@ -52,6 +52,23 @@ public record DriverDetailResponse(
                                           BigDecimal currentBonus,
                                           List<DocumentResponse> documents,
                                           boolean includeSalary) {
+        return of(driver, vehicleId, registrationNumber, ratings, currentBonus, documents, includeSalary,
+                driver.getTotalKilometers());
+    }
+
+    /**
+     * Variante avec un kilometrage impose par l'appelant -- typiquement
+     * le kilometrage GPS reel (DriverService.gpsKilometers()), plus
+     * fiable que le compteur driver.totalKilometers qui ne bouge qu'a
+     * la cloture d'une mission dans l'appli.
+     */
+    public static DriverDetailResponse of(Driver driver,
+                                          Long vehicleId, String registrationNumber,
+                                          List<RatingResponse> ratings,
+                                          BigDecimal currentBonus,
+                                          List<DocumentResponse> documents,
+                                          boolean includeSalary,
+                                          BigDecimal totalKilometers) {
         return new DriverDetailResponse(
                 driver.getId(),
                 driver.getMatricule(),
@@ -77,7 +94,7 @@ public record DriverDetailResponse(
                 vehicleId,
                 registrationNumber,
                 driver.getTotalMissions(),
-                driver.getTotalKilometers(),
+                totalKilometers,
                 driver.getIncidentsCount(),
                 driver.getPerformanceScore(),
                 driver.getRatingClass(),

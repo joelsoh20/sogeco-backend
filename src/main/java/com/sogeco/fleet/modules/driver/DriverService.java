@@ -20,6 +20,8 @@ import com.sogeco.fleet.modules.mission.MissionRepository;
 import com.sogeco.fleet.modules.role.Role;
 import com.sogeco.fleet.modules.role.RoleRepository;
 import com.sogeco.fleet.modules.setting.SettingService;
+import com.sogeco.fleet.modules.tracking.GpsDailyStatRepository;
+import com.sogeco.fleet.modules.tracking.GpsPositionRepository;
 import com.sogeco.fleet.modules.user.User;
 import com.sogeco.fleet.modules.user.UserRepository;
 import com.sogeco.fleet.modules.vehicle.VehicleAssignment;
@@ -39,6 +41,8 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Slf4j
@@ -59,6 +63,8 @@ public class DriverService {
     private final MaintenanceLogRepository maintenanceRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final GpsPositionRepository gpsPositionRepository;
+    private final GpsDailyStatRepository gpsDailyStatRepository;
 
     private static final String PASSWORD_ALPHABET =
             "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
@@ -84,7 +90,8 @@ public class DriverService {
             return DriverResponse.from(driver,
                     assignment == null ? null : assignment.getVehicle().getId(),
                     assignment == null ? null : assignment.getVehicle().getRegistrationNumber(),
-                    salary ? performanceService.currentBonusAmount(driver.getId()) : null);
+                    salary ? performanceService.currentBonusAmount(driver.getId()) : null,
+                    gpsKilometers(driver));
         });
     }
 
@@ -102,7 +109,8 @@ public class DriverService {
                     return DriverResponse.from(driver,
                             assignment == null ? null : assignment.getVehicle().getId(),
                             assignment == null ? null : assignment.getVehicle().getRegistrationNumber(),
-                            salary ? performanceService.currentBonusAmount(driver.getId()) : null);
+                            salary ? performanceService.currentBonusAmount(driver.getId()) : null,
+                            gpsKilometers(driver));
                 })
                 .toList();
     }
@@ -168,7 +176,8 @@ public class DriverService {
                     return DriverResponse.from(driver,
                             assignment == null ? null : assignment.getVehicle().getId(),
                             assignment == null ? null : assignment.getVehicle().getRegistrationNumber(),
-                            salary ? performanceService.currentBonusAmount(driver.getId()) : null);
+                            salary ? performanceService.currentBonusAmount(driver.getId()) : null,
+                            gpsKilometers(driver));
                 })
                 .toList();
     }
@@ -189,7 +198,8 @@ public class DriverService {
                 performanceService.ratingsOf(id),
                 performanceService.currentBonusAmount(id),
                 documentService.listFor(EntityType.DRIVER, id),
-                salary);
+                salary,
+                gpsKilometers(driver));
     }
 
     /** Dossier du chauffeur connecte — point d'entree de l'espace chauffeur. */
@@ -243,7 +253,7 @@ public class DriverService {
                         .divide(BigDecimal.valueOf(scores.size()), 2, java.math.RoundingMode.HALF_UP);
 
         BigDecimal totalKilometers = drivers.stream()
-                .map(Driver::getTotalKilometers).filter(Objects::nonNull)
+                .map(this::gpsKilometers).filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         long totalIncidents = drivers.stream()
@@ -487,6 +497,60 @@ public class DriverService {
         assignmentRepository.findByEndDateIsNull()
                 .forEach(assignment -> map.put(assignment.getDriver().getId(), assignment));
         return map;
+    }
+
+    /**
+     * Km reellement parcourus par le chauffeur, somme du suivi GPS des
+     * camions qui lui ont ete affectes, sur toute la duree de chaque
+     * affectation (vehicle_assignments). Plus fiable que
+     * driver.totalKilometers, qui ne bouge qu'a la cloture d'une mission
+     * dans l'appli : un usage quotidien sans mission formelle (tour de
+     * ville) laisserait sinon ce compteur bloque a zero alors que le
+     * camion a reellement roule. Repli sur driver.totalKilometers si
+     * aucune donnee GPS n'est disponible (camion jamais affecte, sans
+     * boitier, ou hors de la fenetre de retention).
+     */
+    private BigDecimal gpsKilometers(Driver driver) {
+        List<VehicleAssignment> history = assignmentRepository.findByDriverIdOrderByStartDateDesc(driver.getId());
+        if (history.isEmpty()) {
+            return driver.getTotalKilometers();
+        }
+
+        ZoneId zone = ZoneId.of(settingService.getString("company.timezone", "Africa/Douala"));
+        BigDecimal total = BigDecimal.ZERO;
+        for (VehicleAssignment assignment : history) {
+            Instant from = assignment.getStartDate().atStartOfDay(zone).toInstant();
+            LocalDate endDate = assignment.getEndDate() == null ? LocalDate.now(zone) : assignment.getEndDate();
+            Instant to = endDate.plusDays(1).atStartOfDay(zone).toInstant();
+            total = total.add(gpsDistance(assignment.getVehicle().getId(), from, to));
+        }
+        return total.signum() > 0 ? total : driver.getTotalKilometers();
+    }
+
+    /**
+     * Positions brutes recentes + agregat journalier pour la partie
+     * purgee -- une affectation chauffeur/camion dure typiquement bien
+     * plus longtemps que la fenetre de retention GPS (par defaut 90
+     * jours), contrairement a l'ecart entre deux pleins de carburant :
+     * se limiter a un seul repli base sur la seule date de debut (comme
+     * FuelService.gpsDistance()) ignorerait alors systematiquement les
+     * positions recentes disponibles des que l'affectation est ancienne.
+     */
+    private BigDecimal gpsDistance(Long vehicleId, Instant from, Instant to) {
+        int retentionDays = settingService.getInt("gps.retention_days", 90);
+        Instant cutoff = Instant.now().minus(retentionDays, ChronoUnit.DAYS);
+
+        if (!from.isBefore(cutoff)) {
+            return gpsPositionRepository.sumDistance(vehicleId, from, to);
+        }
+        if (!to.isAfter(cutoff)) {
+            return gpsDailyStatRepository.totalDistance(vehicleId,
+                    LocalDate.ofInstant(from, ZoneOffset.UTC), LocalDate.ofInstant(to, ZoneOffset.UTC));
+        }
+        BigDecimal older = gpsDailyStatRepository.totalDistance(vehicleId,
+                LocalDate.ofInstant(from, ZoneOffset.UTC), LocalDate.ofInstant(cutoff, ZoneOffset.UTC));
+        BigDecimal recent = gpsPositionRepository.sumDistance(vehicleId, cutoff, to);
+        return older.add(recent);
     }
 
     /** Salaires et primes : roles habilites uniquement (RG-9.13). */
