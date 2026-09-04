@@ -139,23 +139,20 @@ public class DriverPerformanceService {
     /**
      * Recalcule le score global du chauffeur pour un mois.
      *
-     * Aucun score n'est produit en dessous du nombre minimal de missions
-     * (RG-9.8) : mieux vaut ne pas noter que noter faux. Les criteres
-     * absents sont ignores, et les ponderations renormalisees sur les
-     * seuls criteres disponibles.
+     * Aucun score n'est produit sans au moins une note saisie pour la
+     * periode (RG-9.8) : mieux vaut ne pas noter que noter faux. Les
+     * criteres absents sont ignores, et les ponderations renormalisees
+     * sur les seuls criteres disponibles.
+     *
+     * Ne conditionne plus ce calcul a un nombre minimal de missions
+     * cloturees dans l'appli : un usage quotidien sans mission formelle
+     * (tour de ville, cf. DriverService.gpsKilometers()) aurait sinon
+     * laisse le score bloque indefiniment, meme avec des notes saisies
+     * par un responsable.
      */
     @Transactional
     public Optional<BigDecimal> recomputeScore(Long driverId, LocalDate period) {
         Driver driver = findDriver(driverId);
-
-        int minMissions = settingService.getInt("performance.min_missions", 3);
-
-        if (driver.getTotalMissions() == null || driver.getTotalMissions() < minMissions) {
-            log.debug("Score non calcule pour {} : {} missions, minimum {}",
-                    driver.getFullName(), driver.getTotalMissions(), minMissions);
-            driver.setPerformanceScore(null);
-            return Optional.empty();
-        }
 
         List<DriverRating> ratings = ratingRepository.findByDriverIdAndPeriodMonth(driverId, normalize(period));
         if (ratings.isEmpty()) {
