@@ -9,7 +9,7 @@ import com.sogeco.fleet.modules.fuel.dto.TankLevelResponse.TankLevelSource;
 import com.sogeco.fleet.modules.fuel.dto.WeeklyRefuelResponse;
 import com.sogeco.fleet.modules.mission.MissionRepository;
 import com.sogeco.fleet.modules.setting.SettingService;
-import com.sogeco.fleet.modules.tracking.GpsDailyStatRepository;
+import com.sogeco.fleet.modules.tracking.GpsPositionRepository;
 import com.sogeco.fleet.modules.vehicle.Vehicle;
 import com.sogeco.fleet.modules.vehicle.VehicleRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,7 @@ public class FuelAnalyticsService {
     private final FuelLogRepository repository;
     private final MissionRepository missionRepository;
     private final VehicleRepository vehicleRepository;
-    private final GpsDailyStatRepository dailyStatRepository;
+    private final GpsPositionRepository positionRepository;
     private final SettingService settingService;
 
     @Transactional(readOnly = true)
@@ -212,15 +212,27 @@ public class FuelAnalyticsService {
      *
      * Le niveau avant plein reutilise tankLevelFor() (meme estimation que
      * l'ecran Carburant) : la seule donnee propre a cet ecran est la
-     * distance parcourue sur la periode, agregee depuis gps_daily_stats.
+     * distance parcourue sur la periode.
+     *
+     * Sommee directement depuis gps_positions (comme le fait deja le calcul
+     * de consommation, GpsPositionRepository.sumDistance) plutot que depuis
+     * gps_daily_stats : cette table n'est peuplee que par le job nocturne
+     * TelematicsScheduler.aggregateAndPurge(), qui n'agrege QUE la veille
+     * et ne tourne donc que si l'application est bien active a 2h du matin
+     * -- jamais garanti sur un hebergeur qui peut mettre le service en
+     * veille. Une semaine de positions brutes reste une requete bornee et
+     * peu couteuse, contrairement a l'historique complet.
      */
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('FUEL_READ')")
     public List<WeeklyRefuelResponse> weeklyRefuel(LocalDate from, LocalDate to, Long cityId) {
         cityId = SecurityUtils.currentCityId().orElse(cityId);
+        ZoneId zone = ZoneId.of(settingService.getString("company.timezone", "Africa/Douala"));
+        Instant fromInstant = from.atStartOfDay(zone).toInstant();
+        Instant toInstant = to.plusDays(1).atStartOfDay(zone).toInstant();
         return vehicleRepository.findActiveForCity(cityId).stream()
                 .map(vehicle -> {
-                    BigDecimal distance = dailyStatRepository.totalDistance(vehicle.getId(), from, to);
+                    BigDecimal distance = positionRepository.sumDistance(vehicle.getId(), fromInstant, toInstant);
                     TankLevelResponse tank = tankLevelFor(vehicle);
 
                     BigDecimal suggestedRefill = tank.tankCapacityLiters() != null
