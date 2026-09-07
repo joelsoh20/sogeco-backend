@@ -1,5 +1,6 @@
 package com.sogeco.fleet.modules.vehicle;
 
+import com.sogeco.fleet.common.enums.BodyType;
 import com.sogeco.fleet.common.enums.UsageType;
 import com.sogeco.fleet.common.enums.VehicleStatus;
 import org.springframework.data.domain.Page;
@@ -68,6 +69,19 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long>, JpaSpec
                OR (v.nextMaintenanceDate IS NOT NULL AND v.nextMaintenanceDate <= :dateLimit))
            """)
     List<Vehicle> findDueForMaintenance(java.math.BigDecimal kmWarning, LocalDate dateLimit);
+
+    /**
+     * Consommation moyenne connue des camions de meme carrosserie, pour
+     * estimer le niveau de reservoir d'un camion qui n'a pas encore
+     * assez d'historique pour son propre taux (FuelAnalyticsService.
+     * tankLevelFor). Null si aucun camion de cette carrosserie n'a
+     * encore de taux calcule.
+     */
+    @Query("""
+           SELECT AVG(v.avgFuelConsumption) FROM Vehicle v
+           WHERE v.bodyType = :bodyType AND v.avgFuelConsumption IS NOT NULL
+           """)
+    java.math.BigDecimal averageFuelConsumptionForBodyType(@Param("bodyType") BodyType bodyType);
 
     /** Recherche pour la barre de recherche du tableau de bord — immatriculation, marque ou modele. */
     @EntityGraph(attributePaths = "city")

@@ -1,6 +1,7 @@
 package com.sogeco.fleet.modules.fuel;
 
 import com.sogeco.fleet.common.enums.FuelLogStatus;
+import com.sogeco.fleet.common.exception.ResourceNotFoundException;
 import com.sogeco.fleet.common.security.SecurityUtils;
 import com.sogeco.fleet.modules.driver.dto.DriverFuelEconomyResponse;
 import com.sogeco.fleet.modules.fuel.dto.FuelStatsResponse;
@@ -156,6 +157,19 @@ public class FuelAnalyticsService {
                 .toList();
     }
 
+    /**
+     * Niveau de reservoir d'un seul camion, pour le panneau de detail
+     * vehicule (drawer) : evite de recharger le niveau de toute une
+     * ville pour n'en afficher qu'un.
+     */
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('FUEL_READ')")
+    public TankLevelResponse tankLevelForVehicle(Long vehicleId) {
+        Vehicle vehicle = vehicleRepository.findById(vehicleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Camion", vehicleId));
+        return tankLevelFor(vehicle);
+    }
+
     /** Expose aussi a TrackingService : la carte affiche le meme niveau (mesure ou estime) que l'ecran Carburant. */
     public TankLevelResponse tankLevelFor(Vehicle vehicle) {
         if (vehicle.getFuelLevelPercent() != null) {
@@ -166,7 +180,6 @@ public class FuelAnalyticsService {
         }
 
         BigDecimal tankCapacity = vehicle.getTankCapacityLiters();
-        BigDecimal avgConsumption = vehicle.getAvgFuelConsumption();
         // L'entreprise ne fait jamais de plein complet : findPreviousFullTank ne
         // trouverait donc jamais rien. Le tout premier plein connu sert de repere
         // a la place, en supposant le reservoir vide avant lui — sous-estime
@@ -175,7 +188,27 @@ public class FuelAnalyticsService {
         // suivants (fuelAddedSince).
         var firstLog = repository.findFirstLog(vehicle.getId());
 
-        if (tankCapacity == null || avgConsumption == null || firstLog.isEmpty()) {
+        if (tankCapacity == null || firstLog.isEmpty()) {
+            return new TankLevelResponse(
+                    vehicle.getId(), vehicle.getRegistrationNumber(), tankCapacity,
+                    null, null, null, null, TankLevelSource.INDISPONIBLE);
+        }
+
+        // Pas encore assez d'historique PROPRE a ce camion pour son propre taux
+        // (un seul plein jamais saisi, ou aucune paire de pleins permettant de
+        // mesurer une distance) : repli sur la consommation moyenne des camions
+        // de meme carrosserie, plutot que de n'afficher aucun chiffre -- un
+        // niveau approximatif reste plus utile qu'un tiret pour un camion sans
+        // jauge physique. Marque comme telle (source moins fiable), et se
+        // remplace automatiquement par le taux propre au camion des qu'il existe.
+        BigDecimal avgConsumption = vehicle.getAvgFuelConsumption();
+        TankLevelSource source = TankLevelSource.ESTIMATION_DISTANCE;
+        if (avgConsumption == null) {
+            avgConsumption = vehicleRepository.averageFuelConsumptionForBodyType(vehicle.getBodyType());
+            source = TankLevelSource.ESTIMATION_APPROXIMATIVE;
+        }
+
+        if (avgConsumption == null) {
             return new TankLevelResponse(
                     vehicle.getId(), vehicle.getRegistrationNumber(), tankCapacity,
                     null, null, null, null, TankLevelSource.INDISPONIBLE);
@@ -201,7 +234,7 @@ public class FuelAnalyticsService {
         return new TankLevelResponse(
                 vehicle.getId(), vehicle.getRegistrationNumber(), tankCapacity,
                 estimatedLiters, estimatedPercent, distanceSince,
-                anchor.getFuelDatetime(), TankLevelSource.ESTIMATION_DISTANCE);
+                anchor.getFuelDatetime(), source);
     }
 
     /**

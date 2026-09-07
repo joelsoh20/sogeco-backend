@@ -6,9 +6,15 @@ import java.time.Instant;
 /**
  * Niveau de carburant estime dans le reservoir d'un camion.
  *
- * Deux sources possibles : la telematique (boitier GPS/OBD, valeur
- * mesuree) prioritaire quand elle existe, sinon une estimation basee
- * sur le dernier plein complet et la distance parcourue depuis.
+ * Trois sources possibles, par ordre de fiabilite decroissante : la
+ * telematique (boitier GPS/OBD, valeur mesuree) ; a defaut, une
+ * estimation basee sur le dernier plein connu de CE camion et la
+ * distance qu'il a parcourue depuis (ESTIMATION_DISTANCE) ; a defaut
+ * encore (pas assez d'historique propre au camion pour connaitre son
+ * taux de consommation), une estimation basee sur la consommation
+ * moyenne des camions de meme carrosserie (ESTIMATION_APPROXIMATIVE) --
+ * moins fiable, mais un chiffre approximatif reste plus utile qu'aucun
+ * chiffre pour un camion sans jauge physique.
  */
 public record TankLevelResponse(
         Long vehicleId,
@@ -21,6 +27,6 @@ public record TankLevelResponse(
         TankLevelSource source
 ) {
     public enum TankLevelSource {
-        TELEMATIQUE, ESTIMATION_DISTANCE, INDISPONIBLE
+        TELEMATIQUE, ESTIMATION_DISTANCE, ESTIMATION_APPROXIMATIVE, INDISPONIBLE
     }
 }

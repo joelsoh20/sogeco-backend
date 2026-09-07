@@ -52,6 +52,14 @@ public class FuelController {
         return analyticsService.tankLevels(cityId);
     }
 
+    @GetMapping("/tank-levels/{vehicleId}")
+    @Operation(summary = "Niveau de carburant estime d'un seul camion",
+            description = "Pense pour le panneau de detail vehicule : evite de recharger le niveau de "
+                    + "toute une ville pour n'en afficher qu'un.")
+    public TankLevelResponse tankLevel(@PathVariable Long vehicleId) {
+        return analyticsService.tankLevelForVehicle(vehicleId);
+    }
+
     @GetMapping("/weekly-refuel")
     @Operation(summary = "Km, consommation et carburant a ajouter par camion sur la periode",
             description = "Pense pour les vehicules a suivi allege (moto, tricycle, voiture de livraison), "
