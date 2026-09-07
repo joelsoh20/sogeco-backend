@@ -93,7 +93,8 @@ public class TelematicsIngestionService {
             LivePosition previous = cache.find(vehicle.getId()).orElse(null);
             Mission activeMission = findActiveMission(vehicle.getId());
 
-            BigDecimal distance = computeDistance(previous, payload, vehicle);
+            DistanceResult distanceResult = computeDistance(previous, payload, vehicle);
+            BigDecimal distance = distanceResult.deltaKm();
             BigDecimal speedKmh = normalizeSpeed(payload.speedKmh());
 
             GpsPosition position = positionRepository.save(GpsPosition.builder()
@@ -114,7 +115,7 @@ public class TelematicsIngestionService {
                     .valid(payload.valid() == null || payload.valid())
                     .build());
 
-            updateVehicle(vehicle, payload, distance, previous == null);
+            updateVehicle(vehicle, payload, distanceResult);
 
             if (payload.hasDiagnostics()) {
                 storeDiagnostics(vehicle, payload);
@@ -198,13 +199,30 @@ public class TelematicsIngestionService {
     }
 
     /**
+     * Distance calculee pour une trame, et — si elle vient de l'odometre
+     * du boitier — le kilometrage absolu auquel resynchroniser le camion.
+     * odometerSyncKm reste nul pour une distance Haversine (accumulation
+     * relative uniquement, cf. Vehicle.addDistance).
+     */
+    private record DistanceResult(BigDecimal deltaKm, BigDecimal odometerSyncKm) {
+        static DistanceResult zero() {
+            return new DistanceResult(BigDecimal.ZERO, null);
+        }
+    }
+
+    /**
      * Distance depuis la position precedente.
      *
      * L'odometre du boitier fait autorite quand il est disponible et
-     * vraisemblable : mesure directe (roue/CAN), il suit
-     * la route reelle la ou Haversine trace une ligne droite entre deux
-     * points — au risque de couper les virages si l'echantillonnage est
-     * espace. A defaut d'odometre, repli sur Haversine.
+     * vraisemblable : mesure directe (roue/CAN), il suit la route
+     * reelle la ou Haversine trace une ligne droite entre deux points —
+     * au risque de couper les virages si l'echantillonnage est espace.
+     * Verifie AVANT toute chose (meme sans position precedente en
+     * cache) : c'est ce qui permet au suivi de rattraper automatiquement
+     * un retard pris sur le boitier (panne d'ingestion passee, cache
+     * Redis expire) des que celui-ci revient a jour, plutot que de
+     * necessiter une correction manuelle. A defaut d'odometre
+     * exploitable, repli sur Haversine.
      *
      * Dans les deux cas, un saut impossible — plus de 200 km/h implicites
      * — est ecarte : c'est le cas typique d'une position GPS aberrante
@@ -217,19 +235,19 @@ public class TelematicsIngestionService {
      * d'une trame a l'autre (precision du boitier), qui s'additionneraient
      * sinon en kilometrage fantome au fil de la journee.
      */
-    private BigDecimal computeDistance(LivePosition previous, TelematicsPayload payload, Vehicle vehicle) {
+    private DistanceResult computeDistance(LivePosition previous, TelematicsPayload payload, Vehicle vehicle) {
+        DistanceResult odometer = odometerDistance(vehicle, payload);
+        if (odometer != null) {
+            return odometer;
+        }
+
         if (previous == null || previous.latitude() == null) {
-            return BigDecimal.ZERO;
+            return DistanceResult.zero();
         }
 
         long seconds = Duration.between(previous.recordedAt(), payload.recordedAt()).getSeconds();
         if (seconds <= 0) {
-            return BigDecimal.ZERO;
-        }
-
-        BigDecimal odometer = odometerDistance(vehicle, payload, seconds);
-        if (odometer != null) {
-            return odometer;
+            return DistanceResult.zero();
         }
 
         double implied = GeoUtils.impliedSpeedKmh(
@@ -239,7 +257,7 @@ public class TelematicsIngestionService {
 
         if (implied > 200) {
             log.warn("Saut geographique ecarte : {} km/h implicites entre deux trames", (int) implied);
-            return BigDecimal.ZERO;
+            return DistanceResult.zero();
         }
 
         double km = GeoUtils.distanceKm(
@@ -253,26 +271,58 @@ public class TelematicsIngestionService {
         // immobile depuis le matin, affichait tout de meme "1 km" parcouru.
         int minMovementMeters = settingService.getInt("gps.min_movement_meters", 20);
         if (km * 1000 < minMovementMeters) {
-            return BigDecimal.ZERO;
+            return DistanceResult.zero();
         }
 
-        return BigDecimal.valueOf(km).setScale(3, RoundingMode.HALF_UP);
+        return new DistanceResult(BigDecimal.valueOf(km).setScale(3, RoundingMode.HALF_UP), null);
     }
 
     /**
-     * Delta d'odometre depuis le dernier kilometrage connu du vehicule.
+     * Delta d'odometre depuis le dernier releve CONNU DU BOITIER (table
+     * gps_positions), pas depuis le kilometrage interne du camion : ce
+     * dernier peut avoir pris du retard sur le boitier si des trames ont
+     * ete perdues (panne Redis passee, conflit de verrou desormais
+     * corrige, webhook mal configure) — comparer au boitier permet de
+     * rattraper cet ecart des qu'il revient a jour, au lieu d'y rester
+     * bloque indefiniment (l'ecart ne peut jamais se resorber tout seul
+     * en ne comparant qu'au kilometrage interne, deja en retard : le
+     * DistanceResult renvoye porte alors le releve absolu du boitier,
+     * pour que updateVehicle() resynchronise le camion dessus plutot
+     * que d'empiler un delta sur une base qui reste fausse).
+     *
+     * Repli sur le kilometrage interne uniquement pour le tout premier
+     * releve d'odometre jamais recu de ce camion (aucune reference du
+     * boitier a comparer) — accepte alors sans controle de vraisemblance
+     * temporel, faute de point de comparaison.
+     *
      * Retourne null (repli sur Haversine) si le boitier n'en remonte pas,
      * si le delta est negatif ou nul (odometre pas encore avance, ou
      * qui vient de reculer), ou si le delta implique plus de 200 km/h —
-     * signe d'un odometre incoherent plutot que d'un trajet reel.
+     * signe d'un odometre incoherent (remise a zero, changement d'unite)
+     * plutot qu'un vrai trajet ou un vrai rattrapage.
      */
-    private BigDecimal odometerDistance(Vehicle vehicle, TelematicsPayload payload, long seconds) {
+    private DistanceResult odometerDistance(Vehicle vehicle, TelematicsPayload payload) {
         if (payload.odometerKm() == null) {
             return null;
         }
 
-        BigDecimal delta = payload.odometerKm().subtract(vehicle.getCurrentKilometers());
+        Optional<GpsPosition> reference = positionRepository.findLatestWithOdometer(vehicle.getId());
+
+        if (reference.isEmpty()) {
+            BigDecimal delta = payload.odometerKm().subtract(vehicle.getCurrentKilometers());
+            return delta.signum() > 0
+                    ? new DistanceResult(delta.setScale(3, RoundingMode.HALF_UP), payload.odometerKm())
+                    : null;
+        }
+
+        GpsPosition previousOdometerReading = reference.get();
+        BigDecimal delta = payload.odometerKm().subtract(previousOdometerReading.getOdometerKm());
         if (delta.signum() <= 0) {
+            return null;
+        }
+
+        long seconds = Duration.between(previousOdometerReading.getRecordedAt(), payload.recordedAt()).getSeconds();
+        if (seconds <= 0) {
             return null;
         }
 
@@ -282,25 +332,22 @@ public class TelematicsIngestionService {
             return null;
         }
 
-        return delta.setScale(3, RoundingMode.HALF_UP);
+        return new DistanceResult(delta.setScale(3, RoundingMode.HALF_UP), payload.odometerKm());
     }
 
     // ------------------------------------------------------------------
     // Mises a jour
     // ------------------------------------------------------------------
 
-    private void updateVehicle(Vehicle vehicle, TelematicsPayload payload, BigDecimal distance,
-                               boolean firstPosition) {
-        vehicle.addDistance(distance);
-
-        // Toute premiere position connue du vehicule : aucun delta n'est
-        // calculable faute de position precedente. L'odometre du boitier,
-        // s'il est plus recent que le kilometrage enregistre, sert alors de
-        // base de depart — sans quoi computeDistance() n'a plus jamais
-        // d'ecart a mesurer et la derive ne serait plus jamais corrigee.
-        if (firstPosition && payload.odometerKm() != null
-                && payload.odometerKm().compareTo(vehicle.getCurrentKilometers()) > 0) {
-            vehicle.setCurrentKilometers(payload.odometerKm());
+    private void updateVehicle(Vehicle vehicle, TelematicsPayload payload, DistanceResult distanceResult) {
+        if (distanceResult.odometerSyncKm() != null) {
+            // Resynchronisation directe sur le releve du boitier, plutot qu'une
+            // accumulation relative : rattrape immediatement un retard pris sur
+            // le boitier (trames perdues avant correction), au lieu d'empiler
+            // un delta sur une base qui resterait fausse indefiniment.
+            vehicle.syncOdometer(distanceResult.odometerSyncKm(), distanceResult.deltaKm());
+        } else {
+            vehicle.addDistance(distanceResult.deltaKm());
         }
 
         // Sonde de reservoir uniquement : une valeur mesuree, jamais une

@@ -177,6 +177,23 @@ public class Vehicle extends SoftDeletableEntity {
         this.dailyKm = this.dailyKm.add(distanceKm);
     }
 
+    /**
+     * Resynchronisation directe sur un releve d'odometre du boitier,
+     * plutot qu'une accumulation relative comme addDistance() : rattrape
+     * immediatement un retard pris sur le boitier (trames GPS perdues
+     * par le passe), au lieu d'empiler un delta sur une base qui
+     * resterait fausse indefiniment. dailyKm continue de s'accumuler
+     * par delta (il repart a zero chaque nuit, sans notion d'absolu).
+     */
+    public void syncOdometer(BigDecimal absoluteKm, BigDecimal dailyDeltaKm) {
+        if (absoluteKm != null && absoluteKm.compareTo(this.currentKilometers) > 0) {
+            this.currentKilometers = absoluteKm;
+        }
+        if (dailyDeltaKm != null && dailyDeltaKm.signum() > 0) {
+            this.dailyKm = this.dailyKm.add(dailyDeltaKm);
+        }
+    }
+
     public void resetDailyKm() {
         this.dailyKm = BigDecimal.ZERO;
     }

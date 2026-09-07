@@ -28,6 +28,24 @@ public interface GpsPositionRepository extends JpaRepository<GpsPosition, Long> 
            """)
     Optional<GpsPosition> findLatest(@Param("vehicleId") Long vehicleId);
 
+    /**
+     * Dernier releve d'odometre CONNU DU BOITIER pour ce camion (pas le
+     * kilometrage interne du camion, qui peut avoir pris du retard sur
+     * lui -- panne d'ingestion passee, trames perdues). Sert de reference
+     * a TelematicsIngestionService.odometerDistance() pour verifier la
+     * vraisemblance d'un nouveau releve : comparer au dernier releve du
+     * boitier permet au suivi de rattraper l'ecart des que le boitier
+     * revient a jour, plutot que de rester bloque en dessous de la
+     * verite terrain indefiniment.
+     */
+    @Query("""
+           SELECT p FROM GpsPosition p
+           WHERE p.vehicleId = :vehicleId AND p.odometerKm IS NOT NULL
+           ORDER BY p.recordedAt DESC
+           LIMIT 1
+           """)
+    Optional<GpsPosition> findLatestWithOdometer(@Param("vehicleId") Long vehicleId);
+
     @Query("""
            SELECT p FROM GpsPosition p
            WHERE p.vehicleId = :vehicleId
