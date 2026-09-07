@@ -306,18 +306,26 @@ public class TelematicsIngestionService {
             return null;
         }
 
+        // Meme plancher que la Haversine (gps.min_movement_meters) : un
+        // boitier sans OBD (la majorite du parc) remonte ici le
+        // "totalDistance" calcule par Traccar a partir des memes positions
+        // GPS brutes -- et herite donc de la meme derive au repos si elle
+        // n'est pas filtree ici aussi.
+        int minMovementMeters = settingService.getInt("gps.min_movement_meters", 20);
+
         Optional<GpsPosition> reference = positionRepository.findLatestWithOdometer(vehicle.getId());
 
         if (reference.isEmpty()) {
             BigDecimal delta = payload.odometerKm().subtract(vehicle.getCurrentKilometers());
-            return delta.signum() > 0
-                    ? new DistanceResult(delta.setScale(3, RoundingMode.HALF_UP), payload.odometerKm())
-                    : null;
+            if (delta.signum() <= 0 || delta.doubleValue() * 1000 < minMovementMeters) {
+                return null;
+            }
+            return new DistanceResult(delta.setScale(3, RoundingMode.HALF_UP), payload.odometerKm());
         }
 
         GpsPosition previousOdometerReading = reference.get();
         BigDecimal delta = payload.odometerKm().subtract(previousOdometerReading.getOdometerKm());
-        if (delta.signum() <= 0) {
+        if (delta.signum() <= 0 || delta.doubleValue() * 1000 < minMovementMeters) {
             return null;
         }
 
