@@ -188,7 +188,7 @@ public class FuelAnalyticsService {
         // suivants (fuelAddedSince).
         var firstLog = repository.findFirstLog(vehicle.getId());
 
-        if (tankCapacity == null || firstLog.isEmpty()) {
+        if (firstLog.isEmpty()) {
             return new TankLevelResponse(
                     vehicle.getId(), vehicle.getRegistrationNumber(), tankCapacity,
                     null, null, null, null, TankLevelSource.INDISPONIBLE);
@@ -223,10 +223,17 @@ public class FuelAnalyticsService {
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
         BigDecimal estimatedLiters = anchor.getQuantityLiters().add(fuelAddedSince).subtract(consumed)
-                .max(BigDecimal.ZERO).min(tankCapacity)
-                .setScale(2, RoundingMode.HALF_UP);
+                .max(BigDecimal.ZERO);
+        // Sans capacite renseignee sur la fiche du camion, impossible de plafonner
+        // physiquement l'estimation ni d'en tirer un pourcentage -- on affiche
+        // alors le litrage brut estime (non borne), plutot que de tout masquer
+        // faute d'une seule donnee de fiche vehicule.
+        if (tankCapacity != null) {
+            estimatedLiters = estimatedLiters.min(tankCapacity);
+        }
+        estimatedLiters = estimatedLiters.setScale(2, RoundingMode.HALF_UP);
 
-        BigDecimal estimatedPercent = tankCapacity.signum() == 0
+        BigDecimal estimatedPercent = (tankCapacity == null || tankCapacity.signum() == 0)
                 ? null
                 : estimatedLiters.multiply(BigDecimal.valueOf(100))
                     .divide(tankCapacity, 2, RoundingMode.HALF_UP);
