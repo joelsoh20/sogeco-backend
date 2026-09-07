@@ -208,6 +208,12 @@ public class TelematicsIngestionService {
      * — est ecarte : c'est le cas typique d'une position GPS aberrante
      * captee sous un pont ou en zone urbaine dense, ou d'un odometre qui
      * vient de deraper (remise a zero, changement d'unite du boitier).
+     *
+     * Cote Haversine, un plancher de mouvement (gps.min_movement_meters)
+     * ecarte aussi les sauts trop petits pour etre un vrai deplacement :
+     * un camion a l'arret rapporte des positions legerement differentes
+     * d'une trame a l'autre (precision du boitier), qui s'additionneraient
+     * sinon en kilometrage fantome au fil de la journee.
      */
     private BigDecimal computeDistance(LivePosition previous, TelematicsPayload payload, Vehicle vehicle) {
         if (previous == null || previous.latitude() == null) {
@@ -237,6 +243,16 @@ public class TelematicsIngestionService {
         double km = GeoUtils.distanceKm(
                 previous.latitude().doubleValue(), previous.longitude().doubleValue(),
                 payload.latitude().doubleValue(), payload.longitude().doubleValue());
+
+        // Camion a l'arret : le GPS "derive" naturellement de quelques metres
+        // d'une trame a l'autre (precision du boitier), sans deplacement reel.
+        // Sans ce plancher, ce bruit s'additionne au fil de la journee en un
+        // kilometrage fantome — signale par un utilisateur dont le camion,
+        // immobile depuis le matin, affichait tout de meme "1 km" parcouru.
+        int minMovementMeters = settingService.getInt("gps.min_movement_meters", 20);
+        if (km * 1000 < minMovementMeters) {
+            return BigDecimal.ZERO;
+        }
 
         return BigDecimal.valueOf(km).setScale(3, RoundingMode.HALF_UP);
     }
