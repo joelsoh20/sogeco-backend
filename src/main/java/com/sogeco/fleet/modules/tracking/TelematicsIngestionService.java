@@ -67,7 +67,9 @@ public class TelematicsIngestionService {
         WebhookEvent event = webhookRepository.findById(webhookEventId).orElse(null);
 
         try {
-            Optional<Vehicle> found = vehicleRepository.findByDeviceId(payload.deviceId());
+            // Verrou pessimiste : serialise le traitement de deux trames du meme
+            // camion arrivees en meme temps, cf. VehicleRepository.findByDeviceIdForUpdate.
+            Optional<Vehicle> found = vehicleRepository.findByDeviceIdForUpdate(payload.deviceId());
             if (found.isEmpty()) {
                 reject(event, WebhookStatus.APPAREIL_INCONNU,
                         "Aucun camion ne porte le boitier " + payload.deviceId());

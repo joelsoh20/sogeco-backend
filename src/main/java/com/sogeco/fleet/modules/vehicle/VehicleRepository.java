@@ -5,9 +5,11 @@ import com.sogeco.fleet.common.enums.UsageType;
 import com.sogeco.fleet.common.enums.VehicleStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -20,6 +22,21 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long>, JpaSpec
     Optional<Vehicle> findByRegistrationNumberIgnoreCase(String registrationNumber);
 
     Optional<Vehicle> findByDeviceId(String deviceId);
+
+    /**
+     * Meme recherche, avec verrou pessimiste sur la ligne du camion --
+     * serialise le traitement de deux trames du meme boitier arrivees
+     * en meme temps (TelematicsIngestionService.process(), tourne en
+     * @Async sur plusieurs threads). Sans ce verrou, deux transactions
+     * concurrentes peuvent mettre a jour la meme alerte (ex. "Perte de
+     * signal") en meme temps ; l'une des deux echoue alors au COMMIT
+     * (verrou optimiste sur Alert), hors de portee d'un try/catch dans
+     * la methode puisque le commit a lieu apres son retour -- toute la
+     * transaction est perdue avec elle, y compris la position GPS.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT v FROM Vehicle v WHERE v.deviceId = :deviceId")
+    Optional<Vehicle> findByDeviceIdForUpdate(@Param("deviceId") String deviceId);
 
     boolean existsByRegistrationNumberIgnoreCase(String registrationNumber);
 
