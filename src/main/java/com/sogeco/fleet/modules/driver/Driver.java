@@ -44,7 +44,7 @@ public class Driver extends SoftDeletableEntity {
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
-    @Column(name = "hire_date", nullable = false)
+    @Column(name = "hire_date")
     private LocalDate hireDate;
 
     @Column(name = "job_title", length = 80)

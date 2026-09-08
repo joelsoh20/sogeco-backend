@@ -28,7 +28,6 @@ public record DriverRequest(
         @Past(message = "la date de naissance doit etre dans le passe")
         LocalDate birthDate,
 
-        @NotNull(message = "la date d'embauche est obligatoire")
         LocalDate hireDate,
 
         @Size(max = 80)
