@@ -30,6 +30,12 @@ public class TransportLicenseController {
         return service.list(pageable);
     }
 
+    @GetMapping("/{id}")
+    @Operation(summary = "Consulter une licence de transport")
+    public TransportLicenseResponse get(@PathVariable Long id) {
+        return service.get(id);
+    }
+
     @PostMapping
     @Operation(summary = "Enregistrer une licence de transport")
     public TransportLicenseResponse create(@Valid @RequestBody TransportLicenseRequest request) {

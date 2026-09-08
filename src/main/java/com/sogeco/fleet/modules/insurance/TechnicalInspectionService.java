@@ -56,6 +56,13 @@ public class TechnicalInspectionService {
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
+    public TechnicalInspectionResponse get(Long id) {
+        return TechnicalInspectionResponse.from(repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Visite technique", id)));
+    }
+
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public List<TechnicalInspectionResponse> forVehicle(Long vehicleId) {
         return repository.findByVehicleIdOrderByInspectionDateDesc(vehicleId)
                 .stream().map(TechnicalInspectionResponse::from).toList();

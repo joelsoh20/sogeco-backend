@@ -38,6 +38,13 @@ public class CarteBleueService {
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
+    public CarteBleueResponse get(Long id) {
+        return CarteBleueResponse.from(repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Carte bleue", id)));
+    }
+
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public List<CarteBleueResponse> forVehicle(Long vehicleId) {
         return repository.findByVehicleIdOrderByExpiryDateDesc(vehicleId)
                 .stream().map(CarteBleueResponse::from).toList();

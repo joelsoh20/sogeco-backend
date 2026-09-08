@@ -56,6 +56,13 @@ public class ClaimService {
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
+    public ClaimResponse get(Long id) {
+        return ClaimResponse.from(repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Sinistre", id)));
+    }
+
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public java.util.List<ClaimResponse> forVehicle(Long vehicleId) {
         return repository.findByVehicleIdOrderByIncidentDateDesc(vehicleId)
                 .stream().map(ClaimResponse::from).toList();

@@ -32,6 +32,12 @@ public class TechnicalInspectionController {
         return service.list(pageable);
     }
 
+    @GetMapping("/{id}")
+    @Operation(summary = "Consulter une visite technique")
+    public TechnicalInspectionResponse get(@PathVariable Long id) {
+        return service.get(id);
+    }
+
     @GetMapping("/vehicle/{vehicleId}")
     @Operation(summary = "Historique des visites d'un camion")
     public List<TechnicalInspectionResponse> forVehicle(@PathVariable Long vehicleId) {

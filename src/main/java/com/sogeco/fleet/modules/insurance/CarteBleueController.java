@@ -32,6 +32,12 @@ public class CarteBleueController {
         return service.list(pageable);
     }
 
+    @GetMapping("/{id}")
+    @Operation(summary = "Consulter une carte bleue")
+    public CarteBleueResponse get(@PathVariable Long id) {
+        return service.get(id);
+    }
+
     @GetMapping("/vehicle/{vehicleId}")
     @Operation(summary = "Historique des cartes bleues d'un camion")
     public List<CarteBleueResponse> forVehicle(@PathVariable Long vehicleId) {

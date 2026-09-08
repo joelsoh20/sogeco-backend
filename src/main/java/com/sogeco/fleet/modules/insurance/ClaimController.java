@@ -33,6 +33,12 @@ public class ClaimController {
         return service.list(pageable);
     }
 
+    @GetMapping("/{id}")
+    @Operation(summary = "Consulter un sinistre")
+    public ClaimResponse get(@PathVariable Long id) {
+        return service.get(id);
+    }
+
     @GetMapping("/vehicle/{vehicleId}")
     @Operation(summary = "Sinistres d'un camion")
     public List<ClaimResponse> forVehicle(@PathVariable Long vehicleId) {

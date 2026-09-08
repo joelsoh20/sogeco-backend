@@ -32,6 +32,12 @@ public class CarteGriseController {
         return service.list(pageable);
     }
 
+    @GetMapping("/{id}")
+    @Operation(summary = "Consulter une carte grise")
+    public CarteGriseResponse get(@PathVariable Long id) {
+        return service.get(id);
+    }
+
     @GetMapping("/vehicle/{vehicleId}")
     @Operation(summary = "Historique des cartes grises d'un camion")
     public List<CarteGriseResponse> forVehicle(@PathVariable Long vehicleId) {

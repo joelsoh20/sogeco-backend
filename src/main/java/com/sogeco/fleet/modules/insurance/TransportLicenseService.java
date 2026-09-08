@@ -34,6 +34,13 @@ public class TransportLicenseService {
         return PageResponse.from(repository.findAllBy(pageable), TransportLicenseResponse::from);
     }
 
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('INSURANCE_READ')")
+    public TransportLicenseResponse get(Long id) {
+        return TransportLicenseResponse.from(repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Licence de transport", id)));
+    }
+
     @Transactional
     @PreAuthorize("hasAuthority('INSURANCE_CREATE')")
     public TransportLicenseResponse create(TransportLicenseRequest request) {
