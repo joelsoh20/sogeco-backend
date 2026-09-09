@@ -36,6 +36,7 @@ public class ComplianceAnalyticsService {
     private final DriverRepository driverRepository;
     private final CarteBleueRepository carteBleueRepository;
     private final CarteGriseRepository carteGriseRepository;
+    private final CarteRoseRepository carteRoseRepository;
     private final TransportLicenseRepository transportLicenseRepository;
     private final SettingService settingService;
 
@@ -119,6 +120,16 @@ public class ComplianceAnalyticsService {
                         carte.getVehicle().getRegistrationNumber(),
                         "Carte grise " + carte.getRegistrationNumber(),
                         carte.getExpiryDate(),
+                        carte.daysUntilExpiry(),
+                        statusFor(carte.daysUntilExpiry(), warningDays))));
+
+        carteRoseRepository.findByValidToLessThanEqual(limit)
+                .forEach(carte -> items.add(new DeadlineItem(
+                        "CARTE_ROSE",
+                        carte.getVehicle().getId(),
+                        carte.getVehicle().getRegistrationNumber(),
+                        "Carte rose " + carte.getRegistrationNumber(),
+                        carte.getValidTo(),
                         carte.daysUntilExpiry(),
                         statusFor(carte.daysUntilExpiry(), warningDays))));
 
