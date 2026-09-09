@@ -22,4 +22,7 @@ public interface CarteGriseRepository extends JpaRepository<CarteGrise, Long> {
 
     @EntityGraph(attributePaths = {"vehicle"})
     List<CarteGrise> findByExpiryDateLessThanEqual(LocalDate limit);
+
+    /** Vrai si ce camion a deja au moins une carte grise, quelle que soit son echeance. */
+    boolean existsByVehicleId(Long vehicleId);
 }

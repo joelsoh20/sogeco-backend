@@ -28,6 +28,9 @@ public interface InsurancePolicyRepository extends JpaRepository<InsurancePolicy
            """)
     Optional<InsurancePolicy> findActiveForVehicle(@Param("vehicleId") Long vehicleId);
 
+    /** Vrai si ce camion a deja au moins une police, expiree ou non — pour signaler l'absence totale, pas juste l'echeance. */
+    boolean existsByVehicles_Id(Long vehicleId);
+
     @EntityGraph(attributePaths = {"insurer", "vehicles"})
     List<InsurancePolicy> findByStatusAndEndDateLessThanEqual(PolicyStatus status, LocalDate limit);
 

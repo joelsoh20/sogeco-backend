@@ -37,6 +37,9 @@ public interface TechnicalInspectionRepository extends JpaRepository<TechnicalIn
 
     long countByResultNot(com.sogeco.fleet.common.enums.InspectionResult result);
 
+    /** Vrai si ce camion a deja au moins une visite, quelle que soit son echeance. */
+    boolean existsByVehicleId(Long vehicleId);
+
     /** Cout total des visites techniques passees sur la periode, pour la repartition des couts. */
     @Query("""
            SELECT COALESCE(SUM(i.cost), 0) FROM TechnicalInspection i

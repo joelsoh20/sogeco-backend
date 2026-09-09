@@ -2,6 +2,7 @@ package com.sogeco.fleet.modules.insurance;
 
 import com.sogeco.fleet.modules.insurance.dto.ComplianceStatsResponse;
 import com.sogeco.fleet.modules.insurance.dto.DeadlineItem;
+import com.sogeco.fleet.modules.insurance.dto.MissingDocumentItem;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,5 +30,11 @@ public class ComplianceController {
     @Operation(summary = "Echeancier unifie : assurances, visites techniques, permis")
     public List<DeadlineItem> schedule(@RequestParam(defaultValue = "90") int daysAhead) {
         return analyticsService.unifiedSchedule(daysAhead);
+    }
+
+    @GetMapping("/missing-documents")
+    @Operation(summary = "Camions actifs sans aucun document d'un type donne (assurance, visite, cartes)")
+    public List<MissingDocumentItem> missingDocuments() {
+        return analyticsService.missingDocuments();
     }
 }

@@ -22,4 +22,7 @@ public interface CarteRoseRepository extends JpaRepository<CarteRose, Long> {
 
     @EntityGraph(attributePaths = {"vehicle", "insurer"})
     List<CarteRose> findByValidToLessThanEqual(LocalDate limit);
+
+    /** Vrai si ce camion a deja au moins une carte rose, quelle que soit son echeance. */
+    boolean existsByVehicleId(Long vehicleId);
 }

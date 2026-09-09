@@ -7,7 +7,10 @@ import com.sogeco.fleet.common.enums.PolicyStatus;
 import com.sogeco.fleet.modules.driver.DriverRepository;
 import com.sogeco.fleet.modules.insurance.dto.ComplianceStatsResponse;
 import com.sogeco.fleet.modules.insurance.dto.DeadlineItem;
+import com.sogeco.fleet.modules.insurance.dto.MissingDocumentItem;
 import com.sogeco.fleet.modules.setting.SettingService;
+import com.sogeco.fleet.modules.vehicle.Vehicle;
+import com.sogeco.fleet.modules.vehicle.VehicleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -38,6 +41,7 @@ public class ComplianceAnalyticsService {
     private final CarteGriseRepository carteGriseRepository;
     private final CarteRoseRepository carteRoseRepository;
     private final TransportLicenseRepository transportLicenseRepository;
+    private final VehicleRepository vehicleRepository;
     private final SettingService settingService;
 
     /** Compteurs de tete : toutes periodes confondues, comme totalClaims/openClaims — pas un rapport mensuel. */
@@ -144,6 +148,40 @@ public class ComplianceAnalyticsService {
                         statusFor(license.daysRemaining(), warningDays))));
 
         return items.stream().sorted(Comparator.comparing(DeadlineItem::daysRemaining)).toList();
+    }
+
+    /**
+     * Camions actifs n'ayant JAMAIS eu de document d'un type donne
+     * (assurance, visite technique, cartes bleue/grise/rose) — distinct
+     * de l'echeancier, qui ne peut lister que des documents deja
+     * saisis en train d'arriver a echeance. La licence de transport
+     * n'est pas concernee : elle couvre la flotte entiere, pas un
+     * camion en particulier.
+     */
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('INSURANCE_READ')")
+    public List<MissingDocumentItem> missingDocuments() {
+        List<MissingDocumentItem> items = new ArrayList<>();
+
+        for (Vehicle vehicle : vehicleRepository.findByActiveTrueOrderByRegistrationNumberAsc()) {
+            if (!policyRepository.existsByVehicles_Id(vehicle.getId())) {
+                items.add(new MissingDocumentItem("ASSURANCE", vehicle.getId(), vehicle.getRegistrationNumber()));
+            }
+            if (!inspectionRepository.existsByVehicleId(vehicle.getId())) {
+                items.add(new MissingDocumentItem("VISITE_TECHNIQUE", vehicle.getId(), vehicle.getRegistrationNumber()));
+            }
+            if (!carteBleueRepository.existsByVehicleId(vehicle.getId())) {
+                items.add(new MissingDocumentItem("CARTE_BLEUE", vehicle.getId(), vehicle.getRegistrationNumber()));
+            }
+            if (!carteGriseRepository.existsByVehicleId(vehicle.getId())) {
+                items.add(new MissingDocumentItem("CARTE_GRISE", vehicle.getId(), vehicle.getRegistrationNumber()));
+            }
+            if (!carteRoseRepository.existsByVehicleId(vehicle.getId())) {
+                items.add(new MissingDocumentItem("CARTE_ROSE", vehicle.getId(), vehicle.getRegistrationNumber()));
+            }
+        }
+
+        return items;
     }
 
     private DocumentStatus statusFor(Long daysRemaining, int warningDays) {

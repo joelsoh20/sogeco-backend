@@ -22,4 +22,7 @@ public interface CarteBleueRepository extends JpaRepository<CarteBleue, Long> {
     boolean existsByReceiptNumber(String receiptNumber);
 
     boolean existsByReceiptNumberAndIdNot(String receiptNumber, Long id);
+
+    /** Vrai si ce camion a deja au moins une carte bleue, quelle que soit son echeance. */
+    boolean existsByVehicleId(Long vehicleId);
 }
