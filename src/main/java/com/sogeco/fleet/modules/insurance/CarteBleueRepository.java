@@ -13,6 +13,10 @@ public interface CarteBleueRepository extends JpaRepository<CarteBleue, Long> {
     @EntityGraph(attributePaths = {"vehicle"})
     Page<CarteBleue> findAllBy(Pageable pageable);
 
+    /** Meme liste, restreinte a une ville — filtrage de securite d'un gestionnaire non-administrateur (RG-13.4). */
+    @EntityGraph(attributePaths = {"vehicle"})
+    Page<CarteBleue> findAllByVehicle_City_Id(Long cityId, Pageable pageable);
+
     @EntityGraph(attributePaths = {"vehicle"})
     List<CarteBleue> findByVehicleIdOrderByExpiryDateDesc(Long vehicleId);
 

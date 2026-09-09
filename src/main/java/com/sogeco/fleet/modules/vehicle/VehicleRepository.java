@@ -68,7 +68,13 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long>, JpaSpec
 
     long countByActiveTrue();
 
+    /** Meme compteur, restreint a une ville — filtrage de securite d'un gestionnaire non-administrateur. */
+    long countByActiveTrueAndCity_Id(Long cityId);
+
     long countByStatusAndActiveTrue(VehicleStatus status);
+
+    /** Meme compteur, restreint a une ville — filtrage de securite d'un gestionnaire non-administrateur. */
+    long countByStatusAndActiveTrueAndCity_Id(VehicleStatus status, Long cityId);
 
     /** Compteurs de tete d'ecran, en une seule requete. */
     @Query("""
@@ -77,6 +83,14 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long>, JpaSpec
            GROUP BY v.status
            """)
     List<Object[]> countGroupedByStatus();
+
+    /** Memes compteurs, restreints a une ville. */
+    @Query("""
+           SELECT v.status, COUNT(v) FROM Vehicle v
+           WHERE v.active = true AND v.city.id = :cityId
+           GROUP BY v.status
+           """)
+    List<Object[]> countGroupedByStatusForCity(@Param("cityId") Long cityId);
 
     /** Camions dont le seuil de maintenance preventive approche. */
     @Query("""
@@ -100,15 +114,20 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long>, JpaSpec
            """)
     java.math.BigDecimal averageFuelConsumptionForBodyType(@Param("bodyType") BodyType bodyType);
 
-    /** Recherche pour la barre de recherche du tableau de bord — immatriculation, marque ou modele. */
+    /**
+     * Recherche pour la barre de recherche du tableau de bord —
+     * immatriculation, marque ou modele. cityId null = pas de filtre
+     * (administrateur, qui voit toute la flotte).
+     */
     @EntityGraph(attributePaths = "city")
     @Query("""
            SELECT v FROM Vehicle v
            WHERE v.active = true
+             AND (:cityId IS NULL OR v.city.id = :cityId)
              AND (LOWER(v.registrationNumber) LIKE LOWER(CONCAT('%', :q, '%'))
                OR LOWER(v.brand) LIKE LOWER(CONCAT('%', :q, '%'))
                OR LOWER(v.model) LIKE LOWER(CONCAT('%', :q, '%')))
            ORDER BY v.registrationNumber ASC
            """)
-    List<Vehicle> search(@Param("q") String q, Pageable pageable);
+    List<Vehicle> search(@Param("q") String q, @Param("cityId") Long cityId, Pageable pageable);
 }

@@ -33,19 +33,24 @@ public class CarteBleueService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public PageResponse<CarteBleueResponse> list(Pageable pageable) {
-        return PageResponse.from(repository.findAllBy(pageable), CarteBleueResponse::from);
+        var page = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findAllByVehicle_City_Id(cityId, pageable))
+                .orElseGet(() -> repository.findAllBy(pageable));
+        return PageResponse.from(page, CarteBleueResponse::from);
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public CarteBleueResponse get(Long id) {
-        return CarteBleueResponse.from(repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Carte bleue", id)));
+        return CarteBleueResponse.from(find(id));
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public List<CarteBleueResponse> forVehicle(Long vehicleId) {
+        if (!inScope(vehicleId)) {
+            return List.of();
+        }
         return repository.findByVehicleIdOrderByExpiryDateDesc(vehicleId)
                 .stream().map(CarteBleueResponse::from).toList();
     }
@@ -82,8 +87,7 @@ public class CarteBleueService {
     @Transactional
     @PreAuthorize("hasAuthority('INSURANCE_UPDATE')")
     public CarteBleueResponse update(Long id, CarteBleueRequest request) {
-        CarteBleue carte = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Carte bleue", id));
+        CarteBleue carte = find(id);
 
         EditWindowGuard.assertEditable(carte.getCreatedAt(),
                 settingService.getInt("carte_bleue.edit_window_hours", 24), "RG-CB-EDIT", "Cette carte bleue");
@@ -113,5 +117,30 @@ public class CarteBleueService {
     @Transactional(readOnly = true)
     public List<CarteBleue> findExpiringBefore(LocalDate limit) {
         return repository.findByExpiryDateLessThanEqual(limit);
+    }
+
+    /**
+     * Point d'entree unique pour charger une carte bleue par id —
+     * centralise ici la restriction de ville (RG-13.4). 404, jamais
+     * 403, pour ne pas confirmer que l'id existe ailleurs.
+     */
+    private CarteBleue find(Long id) {
+        CarteBleue carte = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Carte bleue", id));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        if (cityId != null && (carte.getVehicle() == null || carte.getVehicle().getCity() == null
+                || !cityId.equals(carte.getVehicle().getCity().getId()))) {
+            throw new ResourceNotFoundException("Carte bleue", id);
+        }
+        return carte;
+    }
+
+    /** Vrai si le camion est dans la ville geree, ou si l'appelant voit tout (admin). */
+    private boolean inScope(Long vehicleId) {
+        return SecurityUtils.currentCityId()
+                .map(cityId -> vehicleRepository.findById(vehicleId)
+                        .map(v -> v.getCity() != null && cityId.equals(v.getCity().getId()))
+                        .orElse(false))
+                .orElse(true);
     }
 }

@@ -4,6 +4,7 @@ import com.sogeco.fleet.common.enums.AlertLevel;
 import com.sogeco.fleet.common.enums.AlertStatus;
 import com.sogeco.fleet.common.enums.MissionStatus;
 import com.sogeco.fleet.common.enums.VehicleStatus;
+import com.sogeco.fleet.common.security.SecurityUtils;
 import com.sogeco.fleet.modules.alert.AlertRepository;
 import com.sogeco.fleet.modules.driver.DriverRepository;
 import com.sogeco.fleet.modules.insurance.ComplianceAnalyticsService;
@@ -50,15 +51,16 @@ public class DashboardService {
     public ExecutiveDashboardResponse executive(LocalDate from, LocalDate to) {
         Instant start = from.atStartOfDay(ZONE).toInstant();
         Instant end = to.plusDays(1).atStartOfDay(ZONE).toInstant();
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
 
-        List<Object[]> byVehicle = missionRepository.aggregateProfitabilityByVehicle(start, end);
+        List<Object[]> byVehicle = missionRepository.aggregateProfitabilityByVehicle(start, end, cityId);
         List<VehicleMarginSummary> vehicleSummaries = byVehicle.stream()
                 .map(row -> new VehicleMarginSummary(
                         (Long) row[0], (String) row[1], (BigDecimal) row[5], (Long) row[2]))
                 .sorted((a, b) -> b.margin().compareTo(a.margin()))
                 .toList();
 
-        List<ClientMarginSummary> clientSummaries = missionRepository.aggregateProfitabilityByClient(start, end)
+        List<ClientMarginSummary> clientSummaries = missionRepository.aggregateProfitabilityByClient(start, end, cityId)
                 .stream()
                 .map(row -> new ClientMarginSummary((Long) row[0], (String) row[1], (BigDecimal) row[5]))
                 .limit(3)
@@ -70,26 +72,50 @@ public class DashboardService {
                 vehicleSummaries.stream().limit(3).toList(),
                 vehicleSummaries.reversed().stream().limit(3).toList(),
                 clientSummaries,
-                alertRepository.countByLevelAndStatusIn(AlertLevel.CRITIQUE, OPEN),
-                missionRepository.findCompletedWithoutRevenue(Instant.now()).size());
+                cityId == null
+                        ? alertRepository.countByLevelAndStatusIn(AlertLevel.CRITIQUE, OPEN)
+                        : alertRepository.countByLevelAndStatusInAndVehicle_City_Id(AlertLevel.CRITIQUE, OPEN, cityId),
+                missionRepository.findCompletedWithoutRevenue(Instant.now(), cityId).size());
     }
 
+    /**
+     * Un gestionnaire non-administrateur ne voit ici que sa propre
+     * ville (RG-13.4) — DASHBOARD_OPERATIONAL_READ lui est accorde,
+     * contrairement a DASHBOARD_EXECUTIVE_READ ci-dessus.
+     */
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('DASHBOARD_OPERATIONAL_READ')")
     public OperationalDashboardResponse operational() {
         LocalDate today = LocalDate.now(ZONE);
         Instant start = today.atStartOfDay(ZONE).toInstant();
         Instant end = today.plusDays(1).atStartOfDay(ZONE).toInstant();
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+
+        long unassignedDrivers = cityId == null
+                ? driverRepository.findUnassigned().size()
+                : driverRepository.findUnassignedForCity(cityId).size();
+        long enMaintenance = cityId == null
+                ? vehicleRepository.countByStatusAndActiveTrue(VehicleStatus.EN_MAINTENANCE)
+                : vehicleRepository.countByStatusAndActiveTrueAndCity_Id(VehicleStatus.EN_MAINTENANCE, cityId);
+        long enPanne = cityId == null
+                ? vehicleRepository.countByStatusAndActiveTrue(VehicleStatus.EN_PANNE)
+                : vehicleRepository.countByStatusAndActiveTrueAndCity_Id(VehicleStatus.EN_PANNE, cityId);
+        long openAlerts = cityId == null
+                ? alertRepository.countByStatusIn(OPEN)
+                : alertRepository.countByStatusInAndVehicle_City_Id(OPEN, cityId);
+        long criticalAlerts = cityId == null
+                ? alertRepository.countByLevelAndStatusIn(AlertLevel.CRITIQUE, OPEN)
+                : alertRepository.countByLevelAndStatusInAndVehicle_City_Id(AlertLevel.CRITIQUE, OPEN, cityId);
 
         return new OperationalDashboardResponse(
-                missionRepository.countInPeriod(start, end),
-                missionRepository.countByStatusInPeriod(MissionStatus.EN_COURS, start, end),
-                missionRepository.countByStatusInPeriod(MissionStatus.EN_ATTENTE, start, end),
-                vehicleRepository.countByStatusAndActiveTrue(VehicleStatus.EN_MAINTENANCE),
-                vehicleRepository.countByStatusAndActiveTrue(VehicleStatus.EN_PANNE),
-                driverRepository.findUnassigned().size(),
-                alertRepository.countByStatusIn(OPEN),
-                alertRepository.countByLevelAndStatusIn(AlertLevel.CRITIQUE, OPEN),
+                missionRepository.countInPeriod(start, end, cityId),
+                missionRepository.countByStatusInPeriod(MissionStatus.EN_COURS, start, end, cityId),
+                missionRepository.countByStatusInPeriod(MissionStatus.EN_ATTENTE, start, end, cityId),
+                enMaintenance,
+                enPanne,
+                unassignedDrivers,
+                openAlerts,
+                criticalAlerts,
                 complianceAnalyticsService.unifiedSchedule(7));
     }
 }

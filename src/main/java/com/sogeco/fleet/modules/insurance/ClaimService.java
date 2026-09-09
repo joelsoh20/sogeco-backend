@@ -51,19 +51,24 @@ public class ClaimService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public PageResponse<ClaimResponse> list(Pageable pageable) {
-        return PageResponse.from(repository.findAllBy(pageable), ClaimResponse::from);
+        var page = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findAllByVehicle_City_Id(cityId, pageable))
+                .orElseGet(() -> repository.findAllBy(pageable));
+        return PageResponse.from(page, ClaimResponse::from);
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public ClaimResponse get(Long id) {
-        return ClaimResponse.from(repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Sinistre", id)));
+        return ClaimResponse.from(find(id));
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public java.util.List<ClaimResponse> forVehicle(Long vehicleId) {
+        if (!inScope(vehicleId)) {
+            return java.util.List.of();
+        }
         return repository.findByVehicleIdOrderByIncidentDateDesc(vehicleId)
                 .stream().map(ClaimResponse::from).toList();
     }
@@ -123,8 +128,7 @@ public class ClaimService {
     @Transactional
     @PreAuthorize("hasAuthority('INSURANCE_UPDATE')")
     public ClaimResponse update(Long id, ClaimRequest request) {
-        Claim claim = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Sinistre", id));
+        Claim claim = find(id);
 
         EditWindowGuard.assertEditable(claim.getCreatedAt(),
                 settingService.getInt("claim.edit_window_hours", 24), "RG-8-EDIT", "Ce sinistre");
@@ -152,8 +156,7 @@ public class ClaimService {
     @Transactional
     @PreAuthorize("hasAuthority('INSURANCE_MANAGE')")
     public ClaimResponse decide(Long id, ClaimDecisionRequest request) {
-        Claim claim = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Sinistre", id));
+        Claim claim = find(id);
 
         if (claim.getStatus() == ClaimStatus.CLOTURE) {
             throw new BusinessException("RG-8.9",
@@ -182,6 +185,31 @@ public class ClaimService {
                     "Vous ne pouvez declarer que pour le camion qui vous est actuellement affecte", HttpStatus.FORBIDDEN);
         }
         return driver;
+    }
+
+    /**
+     * Point d'entree unique pour charger un sinistre par id — centralise
+     * ici la restriction de ville (RG-13.4). 404, jamais 403, pour ne
+     * pas confirmer que l'id existe ailleurs dans l'entreprise.
+     */
+    private Claim find(Long id) {
+        Claim claim = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Sinistre", id));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        if (cityId != null && (claim.getVehicle() == null || claim.getVehicle().getCity() == null
+                || !cityId.equals(claim.getVehicle().getCity().getId()))) {
+            throw new ResourceNotFoundException("Sinistre", id);
+        }
+        return claim;
+    }
+
+    /** Vrai si le camion est dans la ville geree, ou si l'appelant voit tout (admin). */
+    private boolean inScope(Long vehicleId) {
+        return SecurityUtils.currentCityId()
+                .map(cityId -> vehicleRepository.findById(vehicleId)
+                        .map(v -> v.getCity() != null && cityId.equals(v.getCity().getId()))
+                        .orElse(false))
+                .orElse(true);
     }
 
     /** Numero au format SIN-AAAA-NNN, sequence annuelle. */

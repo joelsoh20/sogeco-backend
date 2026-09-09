@@ -17,6 +17,10 @@ public interface ClaimRepository extends JpaRepository<Claim, Long> {
     @EntityGraph(attributePaths = {"vehicle", "driver", "policy"})
     Page<Claim> findAllBy(Pageable pageable);
 
+    /** Meme liste, restreinte a une ville — filtrage de securite d'un gestionnaire non-administrateur (RG-13.4). */
+    @EntityGraph(attributePaths = {"vehicle", "driver", "policy"})
+    Page<Claim> findAllByVehicle_City_Id(Long cityId, Pageable pageable);
+
     @EntityGraph(attributePaths = {"vehicle", "driver", "policy"})
     List<Claim> findByVehicleIdOrderByIncidentDateDesc(Long vehicleId);
 

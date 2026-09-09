@@ -61,8 +61,12 @@ public class MaintenanceService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('MAINTENANCE_READ')")
     public MaintenanceResponse get(Long id) {
-        return MaintenanceResponse.from(repository.findWithItemsById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Intervention", id)), true);
+        MaintenanceLog log = repository.findWithItemsById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Intervention", id));
+        if (!inCurrentScope(log)) {
+            throw new ResourceNotFoundException("Intervention", id);
+        }
+        return MaintenanceResponse.from(log, true);
     }
 
     /** Camion d'une autre ville : liste vide, jamais une erreur qui revelerait son existence. */
@@ -155,6 +159,9 @@ public class MaintenanceService {
     public MaintenanceResponse update(Long id, MaintenanceRequest request) {
         MaintenanceLog maintenance = repository.findWithItemsById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Intervention", id));
+        if (!inCurrentScope(maintenance)) {
+            throw new ResourceNotFoundException("Intervention", id);
+        }
 
         EditWindowGuard.assertEditable(maintenance.getCreatedAt(),
                 settingService.getInt("maintenance.edit_window_hours", 1), "RG-7-EDIT", "Cette intervention");
@@ -198,6 +205,9 @@ public class MaintenanceService {
     public MaintenanceResponse changeStatus(Long id, MaintenanceStatus status, LocalDate completionDate) {
         MaintenanceLog maintenance = repository.findWithItemsById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Intervention", id));
+        if (!inCurrentScope(maintenance)) {
+            throw new ResourceNotFoundException("Intervention", id);
+        }
         Vehicle vehicle = maintenance.getVehicle();
 
         if (status == MaintenanceStatus.EN_COURS) {

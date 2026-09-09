@@ -51,19 +51,24 @@ public class TechnicalInspectionService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public PageResponse<TechnicalInspectionResponse> list(Pageable pageable) {
-        return PageResponse.from(repository.findAllBy(pageable), TechnicalInspectionResponse::from);
+        var page = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findAllByVehicle_City_Id(cityId, pageable))
+                .orElseGet(() -> repository.findAllBy(pageable));
+        return PageResponse.from(page, TechnicalInspectionResponse::from);
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public TechnicalInspectionResponse get(Long id) {
-        return TechnicalInspectionResponse.from(repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Visite technique", id)));
+        return TechnicalInspectionResponse.from(find(id));
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public List<TechnicalInspectionResponse> forVehicle(Long vehicleId) {
+        if (!inScope(vehicleId)) {
+            return List.of();
+        }
         return repository.findByVehicleIdOrderByInspectionDateDesc(vehicleId)
                 .stream().map(TechnicalInspectionResponse::from).toList();
     }
@@ -120,8 +125,7 @@ public class TechnicalInspectionService {
     @Transactional
     @PreAuthorize("hasAuthority('INSURANCE_UPDATE')")
     public TechnicalInspectionResponse update(Long id, TechnicalInspectionRequest request) {
-        TechnicalInspection inspection = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Visite technique", id));
+        TechnicalInspection inspection = find(id);
 
         EditWindowGuard.assertEditable(inspection.getCreatedAt(),
                 settingService.getInt("inspection.edit_window_hours", 24), "RG-8-EDIT", "Cette visite technique");
@@ -155,6 +159,31 @@ public class TechnicalInspectionService {
     private Partner findCenter(Long id) {
         return partnerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Centre de controle", id));
+    }
+
+    /**
+     * Point d'entree unique pour charger une visite technique par id —
+     * centralise ici la restriction de ville (RG-13.4). 404, jamais
+     * 403, pour ne pas confirmer que l'id existe ailleurs.
+     */
+    private TechnicalInspection find(Long id) {
+        TechnicalInspection inspection = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Visite technique", id));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        if (cityId != null && (inspection.getVehicle() == null || inspection.getVehicle().getCity() == null
+                || !cityId.equals(inspection.getVehicle().getCity().getId()))) {
+            throw new ResourceNotFoundException("Visite technique", id);
+        }
+        return inspection;
+    }
+
+    /** Vrai si le camion est dans la ville geree, ou si l'appelant voit tout (admin). */
+    private boolean inScope(Long vehicleId) {
+        return SecurityUtils.currentCityId()
+                .map(cityId -> vehicleRepository.findById(vehicleId)
+                        .map(v -> v.getCity() != null && cityId.equals(v.getCity().getId()))
+                        .orElse(false))
+                .orElse(true);
     }
 
     /** Un chauffeur en saisie libre (SELF_MANAGE) ne peut viser que le camion qui lui est actuellement affecte. */

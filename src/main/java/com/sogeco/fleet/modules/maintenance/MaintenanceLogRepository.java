@@ -84,6 +84,16 @@ public interface MaintenanceLogRepository
            """)
     BigDecimal totalCost(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
+    /** Meme total, restreint a une ville — filtrage de securite d'un gestionnaire non-administrateur (RG-13.4). cityId null = pas de filtre. */
+    @Query("""
+           SELECT COALESCE(SUM(m.totalCost), 0) FROM MaintenanceLog m
+           WHERE m.status <> com.sogeco.fleet.common.enums.MaintenanceStatus.ANNULEE
+             AND m.interventionDate >= :from AND m.interventionDate <= :to
+             AND (:cityId IS NULL OR m.vehicle.city.id = :cityId)
+           """)
+    BigDecimal totalCostForCity(@Param("from") LocalDate from, @Param("to") LocalDate to,
+                                @Param("cityId") Long cityId);
+
     /** Repartition par ville d'affectation du camion, pour le bouton "Statistiques par ville". */
     @Query("""
            SELECT m.vehicle.city.id, m.vehicle.city.name, COUNT(m), COALESCE(SUM(m.totalCost), 0),
@@ -125,6 +135,18 @@ public interface MaintenanceLogRepository
            GROUP BY m.category
            """)
     List<Object[]> aggregateByCategory(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    /** Meme repartition, restreinte a une ville — filtrage de securite d'un gestionnaire non-administrateur (RG-13.4). cityId null = pas de filtre. */
+    @Query("""
+           SELECT m.category, COUNT(m), COALESCE(SUM(m.totalCost), 0)
+           FROM MaintenanceLog m
+           WHERE m.status <> com.sogeco.fleet.common.enums.MaintenanceStatus.ANNULEE
+             AND m.interventionDate >= :from AND m.interventionDate <= :to
+             AND (:cityId IS NULL OR m.vehicle.city.id = :cityId)
+           GROUP BY m.category
+           """)
+    List<Object[]> aggregateByCategoryForCity(@Param("from") LocalDate from, @Param("to") LocalDate to,
+                                              @Param("cityId") Long cityId);
 
     /** Tendance quotidienne des couts, pour la courbe de la maquette. */
     @Query("""

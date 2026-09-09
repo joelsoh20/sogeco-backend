@@ -121,6 +121,7 @@ public class MissionService {
     public MissionDetailResponse get(Long id) {
         Mission mission = repository.findWithDetailsById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Mission", id));
+        assertInScope(mission, id);
 
         return MissionDetailResponse.of(
                 mission,
@@ -137,21 +138,22 @@ public class MissionService {
         ZoneId zone = ZoneId.of(settingService.getString("company.timezone", "Africa/Douala"));
         Instant start = from.atStartOfDay(zone).toInstant();
         Instant end = to.plusDays(1).atStartOfDay(zone).toInstant();
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
 
-        long total     = repository.countInPeriod(start, end);
-        long terminees = repository.countByStatusInPeriod(MissionStatus.TERMINEE, start, end);
-        long enCours   = repository.countByStatusInPeriod(MissionStatus.EN_COURS, start, end);
-        long enAttente = repository.countByStatusInPeriod(MissionStatus.EN_ATTENTE, start, end);
-        long annulees  = repository.countByStatusInPeriod(MissionStatus.ANNULEE, start, end);
+        long total     = repository.countInPeriod(start, end, cityId);
+        long terminees = repository.countByStatusInPeriod(MissionStatus.TERMINEE, start, end, cityId);
+        long enCours   = repository.countByStatusInPeriod(MissionStatus.EN_COURS, start, end, cityId);
+        long enAttente = repository.countByStatusInPeriod(MissionStatus.EN_ATTENTE, start, end, cityId);
+        long annulees  = repository.countByStatusInPeriod(MissionStatus.ANNULEE, start, end, cityId);
 
-        long missing = repository.findCompletedWithoutRevenue(Instant.now()).size();
+        long missing = repository.findCompletedWithoutRevenue(Instant.now(), cityId).size();
 
         return new MissionStatsResponse(
                 total, terminees, enCours, enAttente, annulees,
                 percentage(terminees, total),
                 percentage(annulees, total),
-                canSeeFinancials() ? repository.totalRevenue(start, end) : null,
-                repository.totalDistance(start, end),
+                canSeeFinancials() ? repository.totalRevenue(start, end, cityId) : null,
+                repository.totalDistanceForCity(start, end, cityId),
                 missing);
     }
 
@@ -691,7 +693,7 @@ public class MissionService {
     @Transactional(readOnly = true)
     public List<Mission> findMissingRevenue() {
         int hours = settingService.getInt("mission.revenue_reminder_hours", 48);
-        return repository.findCompletedWithoutRevenue(Instant.now().minus(Duration.ofHours(hours)));
+        return repository.findCompletedWithoutRevenue(Instant.now().minus(Duration.ofHours(hours)), null);
     }
 
     // ------------------------------------------------------------------
@@ -807,9 +809,27 @@ public class MissionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Type de prestation", id));
     }
 
+    /**
+     * Point d'entree unique pour charger une mission par id — centralise
+     * ici la restriction de ville (RG-13.4) : un gestionnaire non-admin
+     * ne doit pas pouvoir consulter/modifier une mission d'un camion
+     * d'une autre ville, meme en devinant son id (IDOR). 404, jamais
+     * 403, pour ne pas confirmer que l'id existe ailleurs dans
+     * l'entreprise.
+     */
     Mission find(Long id) {
-        return repository.findById(id)
+        Mission mission = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Mission", id));
+        assertInScope(mission, id);
+        return mission;
+    }
+
+    private void assertInScope(Mission mission, Long id) {
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        if (cityId != null && (mission.getVehicle() == null || mission.getVehicle().getCity() == null
+                || !cityId.equals(mission.getVehicle().getCity().getId()))) {
+            throw new ResourceNotFoundException("Mission", id);
+        }
     }
 
     // ------------------------------------------------------------------

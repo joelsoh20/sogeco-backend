@@ -104,7 +104,8 @@ public class VehicleService {
         }
         Map<Long, VehicleAssignment> byVehicle = activeAssignmentsByVehicle();
 
-        return repository.search(q.trim(), org.springframework.data.domain.PageRequest.of(0, 10)).stream()
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        return repository.search(q.trim(), cityId, org.springframework.data.domain.PageRequest.of(0, 10)).stream()
                 .map(vehicle -> {
                     VehicleAssignment assignment = byVehicle.get(vehicle.getId());
                     return VehicleResponse.from(vehicle,
@@ -117,12 +118,16 @@ public class VehicleService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('VEHICLE_READ')")
     public VehicleStatsResponse stats() {
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
         Map<VehicleStatus, Long> counts = new EnumMap<>(VehicleStatus.class);
-        for (Object[] row : repository.countGroupedByStatus()) {
+        List<Object[]> rows = cityId == null
+                ? repository.countGroupedByStatus()
+                : repository.countGroupedByStatusForCity(cityId);
+        for (Object[] row : rows) {
             counts.put((VehicleStatus) row[0], (Long) row[1]);
         }
 
-        long total = repository.countByActiveTrue();
+        long total = cityId == null ? repository.countByActiveTrue() : repository.countByActiveTrueAndCity_Id(cityId);
         long immobilized = counts.getOrDefault(VehicleStatus.EN_MAINTENANCE, 0L)
                 + counts.getOrDefault(VehicleStatus.EN_PANNE, 0L)
                 + counts.getOrDefault(VehicleStatus.HORS_SERVICE, 0L);
@@ -391,9 +396,21 @@ public class VehicleService {
         return usageType == UsageType.TOUR_VILLE ? weeklyWashCost : null;
     }
 
+    /**
+     * Point d'entree unique pour charger un camion par id — centralise
+     * ici la restriction de ville (RG-13.4) : un gestionnaire non-admin
+     * ne doit pas pouvoir consulter/modifier un camion d'une autre
+     * ville, meme en devinant son id (IDOR). 404, jamais 403, pour ne
+     * pas confirmer que l'id existe ailleurs dans l'entreprise.
+     */
     Vehicle find(Long id) {
-        return repository.findById(id)
+        Vehicle vehicle = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Camion", id));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        if (cityId != null && (vehicle.getCity() == null || !cityId.equals(vehicle.getCity().getId()))) {
+            throw new ResourceNotFoundException("Camion", id);
+        }
+        return vehicle;
     }
 
     Driver findDriver(Long id) {

@@ -75,7 +75,13 @@ public interface AlertRepository extends JpaRepository<Alert, Long>, JpaSpecific
 
     long countByStatusIn(List<AlertStatus> statuses);
 
+    /** Meme compteur, restreint a la ville du gestionnaire (RG-13.4). */
+    long countByStatusInAndVehicle_City_Id(List<AlertStatus> statuses, Long cityId);
+
     long countByLevelAndStatusIn(AlertLevel level, List<AlertStatus> statuses);
+
+    /** Meme compteur, restreint a la ville du gestionnaire (RG-13.4). */
+    long countByLevelAndStatusInAndVehicle_City_Id(AlertLevel level, List<AlertStatus> statuses, Long cityId);
 
     @Query("""
            SELECT a.alertType, COUNT(a) FROM Alert a

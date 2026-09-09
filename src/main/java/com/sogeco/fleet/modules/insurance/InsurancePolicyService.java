@@ -54,19 +54,29 @@ public class InsurancePolicyService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public com.sogeco.fleet.common.dto.PageResponse<InsurancePolicyResponse> list(Pageable pageable) {
-        return com.sogeco.fleet.common.dto.PageResponse.from(repository.findAllBy(pageable), InsurancePolicyResponse::from);
+        var page = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findAllByVehicleCityId(cityId, pageable))
+                .orElseGet(() -> repository.findAllBy(pageable));
+        return com.sogeco.fleet.common.dto.PageResponse.from(page, InsurancePolicyResponse::from);
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public InsurancePolicyResponse get(Long id) {
-        return InsurancePolicyResponse.from(repository.findWithVehiclesById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Police d'assurance", id)));
+        InsurancePolicy policy = find(id);
+        return InsurancePolicyResponse.from(policy);
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public List<InsurancePolicyResponse> forVehicle(Long vehicleId) {
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        if (cityId != null) {
+            Vehicle vehicle = vehicleRepository.findById(vehicleId).orElse(null);
+            if (vehicle == null || vehicle.getCity() == null || !cityId.equals(vehicle.getCity().getId())) {
+                return List.of();
+            }
+        }
         return repository.findActiveForVehicle(vehicleId).map(InsurancePolicyResponse::from)
                 .map(List::of).orElse(List.of());
     }
@@ -114,8 +124,7 @@ public class InsurancePolicyService {
     @Transactional
     @PreAuthorize("hasAuthority('INSURANCE_UPDATE')")
     public InsurancePolicyResponse update(Long id, InsurancePolicyRequest request) {
-        InsurancePolicy policy = repository.findWithVehiclesById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Police d'assurance", id));
+        InsurancePolicy policy = find(id);
 
         EditWindowGuard.assertEditable(policy.getCreatedAt(),
                 settingService.getInt("policy.edit_window_hours", 24), "RG-8-EDIT", "Cette police");
@@ -154,8 +163,7 @@ public class InsurancePolicyService {
     @Transactional
     @PreAuthorize("hasAuthority('INSURANCE_CREATE')")
     public InsurancePolicyResponse renew(Long id, InsurancePolicyRequest request) {
-        InsurancePolicy previous = repository.findWithVehiclesById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Police d'assurance", id));
+        InsurancePolicy previous = find(id);
 
         previous.setStatus(PolicyStatus.EXPIREE);
 
@@ -165,9 +173,26 @@ public class InsurancePolicyService {
     @Transactional
     @PreAuthorize("hasAuthority('INSURANCE_MANAGE')")
     public void cancel(Long id) {
-        InsurancePolicy policy = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Police d'assurance", id));
+        InsurancePolicy policy = find(id);
         policy.setStatus(PolicyStatus.RESILIEE);
+    }
+
+    /**
+     * Point d'entree unique pour charger une police par id — centralise
+     * ici la restriction de ville (RG-13.4). Une police peut couvrir des
+     * camions de plusieurs villes (ManyToMany) : elle reste visible a un
+     * gestionnaire des qu'AU MOINS un des camions couverts est dans sa
+     * ville. 404, jamais 403, pour ne pas confirmer que l'id existe.
+     */
+    private InsurancePolicy find(Long id) {
+        InsurancePolicy policy = repository.findWithVehiclesById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Police d'assurance", id));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        if (cityId != null && policy.getVehicles().stream()
+                .noneMatch(v -> v.getCity() != null && cityId.equals(v.getCity().getId()))) {
+            throw new ResourceNotFoundException("Police d'assurance", id);
+        }
+        return policy;
     }
 
     /** Polices arrivant a echeance, pour la tache planifiee d'alerte. */

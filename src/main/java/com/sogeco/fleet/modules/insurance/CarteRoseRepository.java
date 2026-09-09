@@ -13,6 +13,10 @@ public interface CarteRoseRepository extends JpaRepository<CarteRose, Long> {
     @EntityGraph(attributePaths = {"vehicle", "insurer"})
     Page<CarteRose> findAllBy(Pageable pageable);
 
+    /** Meme liste, restreinte a une ville — filtrage de securite d'un gestionnaire non-administrateur (RG-13.4). */
+    @EntityGraph(attributePaths = {"vehicle", "insurer"})
+    Page<CarteRose> findAllByVehicle_City_Id(Long cityId, Pageable pageable);
+
     @EntityGraph(attributePaths = {"vehicle", "insurer"})
     List<CarteRose> findByVehicleIdOrderByValidToDesc(Long vehicleId);
 

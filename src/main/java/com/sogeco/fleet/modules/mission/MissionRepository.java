@@ -93,35 +93,49 @@ public interface MissionRepository extends JpaRepository<Mission, Long>, JpaSpec
                           @Param("end") Instant end,
                           @Param("excludeId") Long excludeId);
 
-    /** Missions terminees sans chiffre d'affaires saisi (RG-5.9). */
+    /** Missions terminees sans chiffre d'affaires saisi (RG-5.9). cityId null = pas de filtre. */
     @Query("""
            SELECT m FROM Mission m
            WHERE m.status = com.sogeco.fleet.common.enums.MissionStatus.TERMINEE
              AND m.serviceType.billable = true
              AND (m.revenueAmount IS NULL OR m.revenueAmount = 0)
              AND m.actualEnd < :limit
+             AND (:cityId IS NULL OR m.vehicle.city.id = :cityId)
            """)
-    List<Mission> findCompletedWithoutRevenue(@Param("limit") Instant limit);
+    List<Mission> findCompletedWithoutRevenue(@Param("limit") Instant limit, @Param("cityId") Long cityId);
 
     long countByStatus(MissionStatus status);
 
-    @Query("SELECT COUNT(m) FROM Mission m WHERE m.plannedStart >= :from AND m.plannedStart < :to")
-    long countInPeriod(@Param("from") Instant from, @Param("to") Instant to);
+    /** cityId null = pas de filtre (administrateur). */
+    @Query("""
+           SELECT COUNT(m) FROM Mission m
+           WHERE m.plannedStart >= :from AND m.plannedStart < :to
+             AND (:cityId IS NULL OR m.vehicle.city.id = :cityId)
+           """)
+    long countInPeriod(@Param("from") Instant from, @Param("to") Instant to, @Param("cityId") Long cityId);
 
-    @Query("SELECT COUNT(m) FROM Mission m WHERE m.status = :status AND m.plannedStart >= :from AND m.plannedStart < :to")
+    /** cityId null = pas de filtre (administrateur). */
+    @Query("""
+           SELECT COUNT(m) FROM Mission m
+           WHERE m.status = :status AND m.plannedStart >= :from AND m.plannedStart < :to
+             AND (:cityId IS NULL OR m.vehicle.city.id = :cityId)
+           """)
     long countByStatusInPeriod(@Param("status") MissionStatus status,
-                               @Param("from") Instant from, @Param("to") Instant to);
+                               @Param("from") Instant from, @Param("to") Instant to,
+                               @Param("cityId") Long cityId);
 
     /** Sequence annuelle des numeros de mission. */
     @Query(value = "SELECT COUNT(*) FROM missions WHERE mission_number LIKE :prefix", nativeQuery = true)
     long countByNumberPrefix(@Param("prefix") String prefix);
 
+    /** cityId null = pas de filtre (administrateur). */
     @Query("""
            SELECT COALESCE(SUM(m.revenueAmount), 0) FROM Mission m
            WHERE m.status = com.sogeco.fleet.common.enums.MissionStatus.TERMINEE
              AND m.actualEnd >= :from AND m.actualEnd < :to
+             AND (:cityId IS NULL OR m.vehicle.city.id = :cityId)
            """)
-    BigDecimal totalRevenue(@Param("from") Instant from, @Param("to") Instant to);
+    BigDecimal totalRevenue(@Param("from") Instant from, @Param("to") Instant to, @Param("cityId") Long cityId);
 
     @Query("""
            SELECT COALESCE(SUM(m.distanceKm), 0) FROM Mission m
@@ -163,6 +177,7 @@ public interface MissionRepository extends JpaRepository<Mission, Long>, JpaSpec
     @EntityGraph(attributePaths = {"vehicle", "driver", "client", "route", "agency", "serviceType"})
     List<Mission> findByStatusAndActualEndBetween(MissionStatus status, Instant from, Instant to);
 
+    /** cityId null = pas de filtre (administrateur) — RG-13.4. */
     @Query("""
            SELECT m.vehicle.id, m.vehicle.registrationNumber,
                   COUNT(m), COALESCE(SUM(m.revenueAmount),0), COALESCE(SUM(m.totalCost),0),
@@ -170,11 +185,14 @@ public interface MissionRepository extends JpaRepository<Mission, Long>, JpaSpec
            FROM Mission m
            WHERE m.status = com.sogeco.fleet.common.enums.MissionStatus.TERMINEE
              AND m.actualEnd >= :from AND m.actualEnd < :to
+             AND (:cityId IS NULL OR m.vehicle.city.id = :cityId)
            GROUP BY m.vehicle.id, m.vehicle.registrationNumber
            ORDER BY SUM(m.marginAmount) DESC
            """)
-    List<Object[]> aggregateProfitabilityByVehicle(@Param("from") Instant from, @Param("to") Instant to);
+    List<Object[]> aggregateProfitabilityByVehicle(@Param("from") Instant from, @Param("to") Instant to,
+                                                    @Param("cityId") Long cityId);
 
+    /** cityId null = pas de filtre (administrateur) — RG-13.4. */
     @Query("""
            SELECT m.client.id, m.client.companyName,
                   COUNT(m), COALESCE(SUM(m.revenueAmount),0), COALESCE(SUM(m.totalCost),0),
@@ -183,11 +201,14 @@ public interface MissionRepository extends JpaRepository<Mission, Long>, JpaSpec
            WHERE m.status = com.sogeco.fleet.common.enums.MissionStatus.TERMINEE
              AND m.client IS NOT NULL
              AND m.actualEnd >= :from AND m.actualEnd < :to
+             AND (:cityId IS NULL OR m.vehicle.city.id = :cityId)
            GROUP BY m.client.id, m.client.companyName
            ORDER BY SUM(m.marginAmount) DESC
            """)
-    List<Object[]> aggregateProfitabilityByClient(@Param("from") Instant from, @Param("to") Instant to);
+    List<Object[]> aggregateProfitabilityByClient(@Param("from") Instant from, @Param("to") Instant to,
+                                                   @Param("cityId") Long cityId);
 
+    /** cityId null = pas de filtre (administrateur) — RG-13.4. */
     @Query("""
            SELECT m.route.id, m.route.label,
                   COUNT(m), COALESCE(SUM(m.revenueAmount),0), COALESCE(SUM(m.totalCost),0),
@@ -196,11 +217,14 @@ public interface MissionRepository extends JpaRepository<Mission, Long>, JpaSpec
            WHERE m.status = com.sogeco.fleet.common.enums.MissionStatus.TERMINEE
              AND m.route IS NOT NULL
              AND m.actualEnd >= :from AND m.actualEnd < :to
+             AND (:cityId IS NULL OR m.vehicle.city.id = :cityId)
            GROUP BY m.route.id, m.route.label
            ORDER BY SUM(m.marginAmount) DESC
            """)
-    List<Object[]> aggregateProfitabilityByRoute(@Param("from") Instant from, @Param("to") Instant to);
+    List<Object[]> aggregateProfitabilityByRoute(@Param("from") Instant from, @Param("to") Instant to,
+                                                  @Param("cityId") Long cityId);
 
+    /** cityId null = pas de filtre (administrateur) — RG-13.4. */
     @Query("""
            SELECT m.agency.id, m.agency.name,
                   COUNT(m), COALESCE(SUM(m.revenueAmount),0), COALESCE(SUM(m.totalCost),0),
@@ -209,20 +233,24 @@ public interface MissionRepository extends JpaRepository<Mission, Long>, JpaSpec
            WHERE m.status = com.sogeco.fleet.common.enums.MissionStatus.TERMINEE
              AND m.agency IS NOT NULL
              AND m.actualEnd >= :from AND m.actualEnd < :to
+             AND (:cityId IS NULL OR m.vehicle.city.id = :cityId)
            GROUP BY m.agency.id, m.agency.name
            ORDER BY SUM(m.marginAmount) DESC
            """)
-    List<Object[]> aggregateProfitabilityByAgency(@Param("from") Instant from, @Param("to") Instant to);
+    List<Object[]> aggregateProfitabilityByAgency(@Param("from") Instant from, @Param("to") Instant to,
+                                                   @Param("cityId") Long cityId);
 
-    /** Repartition du cout direct par composante, pour l'ecran Rapports — une seule ligne agregee. */
+    /** Repartition du cout direct par composante, pour l'ecran Rapports — une seule ligne agregee. cityId null = pas de filtre. */
     @Query("""
            SELECT COALESCE(SUM(m.fuelCost),0), COALESCE(SUM(m.tollCost),0),
                   COALESCE(SUM(m.driverCost),0), COALESCE(SUM(m.otherCost),0), COALESCE(SUM(m.missionFeeCost),0)
            FROM Mission m
            WHERE m.status = com.sogeco.fleet.common.enums.MissionStatus.TERMINEE
              AND m.actualEnd >= :from AND m.actualEnd < :to
+             AND (:cityId IS NULL OR m.vehicle.city.id = :cityId)
            """)
-    List<Object[]> aggregateCostComponents(@Param("from") Instant from, @Param("to") Instant to);
+    List<Object[]> aggregateCostComponents(@Param("from") Instant from, @Param("to") Instant to,
+                                            @Param("cityId") Long cityId);
 
     /** Minutes cumulees en mission, pour le taux d'utilisation de la flotte. */
     @Query(value = """

@@ -17,6 +17,10 @@ public interface TechnicalInspectionRepository extends JpaRepository<TechnicalIn
     @EntityGraph(attributePaths = {"vehicle", "center"})
     Page<TechnicalInspection> findAllBy(Pageable pageable);
 
+    /** Meme liste, restreinte a une ville — filtrage de securite d'un gestionnaire non-administrateur (RG-13.4). */
+    @EntityGraph(attributePaths = {"vehicle", "center"})
+    Page<TechnicalInspection> findAllByVehicle_City_Id(Long cityId, Pageable pageable);
+
     @EntityGraph(attributePaths = {"vehicle", "center"})
     List<TechnicalInspection> findByVehicleIdOrderByInspectionDateDesc(Long vehicleId);
 
@@ -46,4 +50,13 @@ public interface TechnicalInspectionRepository extends JpaRepository<TechnicalIn
            WHERE i.inspectionDate >= :from AND i.inspectionDate <= :to
            """)
     BigDecimal totalCost(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    /** Meme total, restreint a une ville — filtrage de securite d'un gestionnaire non-administrateur (RG-13.4). cityId null = pas de filtre. */
+    @Query("""
+           SELECT COALESCE(SUM(i.cost), 0) FROM TechnicalInspection i
+           WHERE i.inspectionDate >= :from AND i.inspectionDate <= :to
+             AND (:cityId IS NULL OR i.vehicle.city.id = :cityId)
+           """)
+    BigDecimal totalCostForCity(@Param("from") LocalDate from, @Param("to") LocalDate to,
+                                @Param("cityId") Long cityId);
 }

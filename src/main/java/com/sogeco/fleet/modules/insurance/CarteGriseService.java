@@ -42,19 +42,24 @@ public class CarteGriseService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public PageResponse<CarteGriseResponse> list(Pageable pageable) {
-        return PageResponse.from(repository.findAllBy(pageable), CarteGriseResponse::from);
+        var page = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findAllByVehicle_City_Id(cityId, pageable))
+                .orElseGet(() -> repository.findAllBy(pageable));
+        return PageResponse.from(page, CarteGriseResponse::from);
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public CarteGriseResponse get(Long id) {
-        return CarteGriseResponse.from(repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Carte grise", id)));
+        return CarteGriseResponse.from(find(id));
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public List<CarteGriseResponse> forVehicle(Long vehicleId) {
+        if (!inScope(vehicleId)) {
+            return List.of();
+        }
         return repository.findByVehicleIdOrderByExpiryDateDesc(vehicleId)
                 .stream().map(CarteGriseResponse::from).toList();
     }
@@ -111,8 +116,7 @@ public class CarteGriseService {
     @Transactional
     @PreAuthorize("hasAuthority('INSURANCE_UPDATE')")
     public CarteGriseResponse update(Long id, CarteGriseRequest request) {
-        CarteGrise carte = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Carte grise", id));
+        CarteGrise carte = find(id);
 
         EditWindowGuard.assertEditable(carte.getCreatedAt(),
                 settingService.getInt("carte_grise.edit_window_hours", 24), "RG-CG-EDIT", "Cette carte grise");
@@ -146,6 +150,31 @@ public class CarteGriseService {
     @Transactional(readOnly = true)
     public List<CarteGrise> findExpiringBefore(LocalDate limit) {
         return repository.findByExpiryDateLessThanEqual(limit);
+    }
+
+    /**
+     * Point d'entree unique pour charger une carte grise par id —
+     * centralise ici la restriction de ville (RG-13.4). 404, jamais
+     * 403, pour ne pas confirmer que l'id existe ailleurs.
+     */
+    private CarteGrise find(Long id) {
+        CarteGrise carte = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Carte grise", id));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        if (cityId != null && (carte.getVehicle() == null || carte.getVehicle().getCity() == null
+                || !cityId.equals(carte.getVehicle().getCity().getId()))) {
+            throw new ResourceNotFoundException("Carte grise", id);
+        }
+        return carte;
+    }
+
+    /** Vrai si le camion est dans la ville geree, ou si l'appelant voit tout (admin). */
+    private boolean inScope(Long vehicleId) {
+        return SecurityUtils.currentCityId()
+                .map(cityId -> vehicleRepository.findById(vehicleId)
+                        .map(v -> v.getCity() != null && cityId.equals(v.getCity().getId()))
+                        .orElse(false))
+                .orElse(true);
     }
 
     /** Un chauffeur en saisie libre (SELF_MANAGE) ne peut viser que le camion qui lui est actuellement affecte. */

@@ -4,6 +4,7 @@ import com.sogeco.fleet.common.enums.ClaimStatus;
 import com.sogeco.fleet.common.enums.DocumentStatus;
 import com.sogeco.fleet.common.enums.InspectionResult;
 import com.sogeco.fleet.common.enums.PolicyStatus;
+import com.sogeco.fleet.common.security.SecurityUtils;
 import com.sogeco.fleet.modules.driver.DriverRepository;
 import com.sogeco.fleet.modules.insurance.dto.ComplianceStatsResponse;
 import com.sogeco.fleet.modules.insurance.dto.DeadlineItem;
@@ -73,9 +74,11 @@ public class ComplianceAnalyticsService {
     public List<DeadlineItem> unifiedSchedule(int daysAhead) {
         int warningDays = settingService.getInt("alert.expiry_warning_days", 30);
         LocalDate limit = LocalDate.now().plusDays(daysAhead);
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
         List<DeadlineItem> items = new ArrayList<>();
 
-        policyRepository.findByStatusAndEndDateLessThanEqual(PolicyStatus.ACTIVE, limit)
+        policyRepository.findByStatusAndEndDateLessThanEqual(PolicyStatus.ACTIVE, limit).stream()
+                .filter(policy -> cityId == null || policy.getVehicles().stream().anyMatch(v -> inScope(v, cityId)))
                 .forEach(policy -> items.add(new DeadlineItem(
                         "ASSURANCE",
                         policy.getId(),
@@ -87,7 +90,8 @@ public class ComplianceAnalyticsService {
                         policy.daysRemaining(),
                         statusFor(policy.daysRemaining(), warningDays))));
 
-        inspectionRepository.findByNextInspectionDateLessThanEqual(limit)
+        inspectionRepository.findByNextInspectionDateLessThanEqual(limit).stream()
+                .filter(inspection -> inScope(inspection.getVehicle(), cityId))
                 .forEach(inspection -> items.add(new DeadlineItem(
                         "VISITE_TECHNIQUE",
                         inspection.getVehicle().getId(),
@@ -97,7 +101,9 @@ public class ComplianceAnalyticsService {
                         inspection.daysUntilNext(),
                         statusFor(inspection.daysUntilNext(), warningDays))));
 
-        driverRepository.findByActiveTrueAndLicenseExpiryDateLessThanEqual(limit)
+        driverRepository.findByActiveTrueAndLicenseExpiryDateLessThanEqual(limit).stream()
+                .filter(driver -> cityId == null
+                        || (driver.getCity() != null && cityId.equals(driver.getCity().getId())))
                 .forEach(driver -> items.add(new DeadlineItem(
                         "PERMIS",
                         driver.getId(),
@@ -107,7 +113,8 @@ public class ComplianceAnalyticsService {
                         driver.licenseDaysRemaining(),
                         statusFor(driver.licenseDaysRemaining(), warningDays))));
 
-        carteBleueRepository.findByExpiryDateLessThanEqual(limit)
+        carteBleueRepository.findByExpiryDateLessThanEqual(limit).stream()
+                .filter(carte -> inScope(carte.getVehicle(), cityId))
                 .forEach(carte -> items.add(new DeadlineItem(
                         "CARTE_BLEUE",
                         carte.getVehicle().getId(),
@@ -117,7 +124,8 @@ public class ComplianceAnalyticsService {
                         carte.daysUntilExpiry(),
                         statusFor(carte.daysUntilExpiry(), warningDays))));
 
-        carteGriseRepository.findByExpiryDateLessThanEqual(limit)
+        carteGriseRepository.findByExpiryDateLessThanEqual(limit).stream()
+                .filter(carte -> inScope(carte.getVehicle(), cityId))
                 .forEach(carte -> items.add(new DeadlineItem(
                         "CARTE_GRISE",
                         carte.getVehicle().getId(),
@@ -127,7 +135,8 @@ public class ComplianceAnalyticsService {
                         carte.daysUntilExpiry(),
                         statusFor(carte.daysUntilExpiry(), warningDays))));
 
-        carteRoseRepository.findByValidToLessThanEqual(limit)
+        carteRoseRepository.findByValidToLessThanEqual(limit).stream()
+                .filter(carte -> inScope(carte.getVehicle(), cityId))
                 .forEach(carte -> items.add(new DeadlineItem(
                         "CARTE_ROSE",
                         carte.getVehicle().getId(),
@@ -137,6 +146,8 @@ public class ComplianceAnalyticsService {
                         carte.daysUntilExpiry(),
                         statusFor(carte.daysUntilExpiry(), warningDays))));
 
+        // Licence de transport : couvre la flotte entiere, jamais un camion en
+        // particulier — jamais filtree par ville, visible de tout gestionnaire.
         transportLicenseRepository.findByStatusAndExpiryDateLessThanEqual(PolicyStatus.ACTIVE, limit)
                 .forEach(license -> items.add(new DeadlineItem(
                         "LICENCE_TRANSPORT",
@@ -162,8 +173,12 @@ public class ComplianceAnalyticsService {
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public List<MissingDocumentItem> missingDocuments() {
         List<MissingDocumentItem> items = new ArrayList<>();
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
 
         for (Vehicle vehicle : vehicleRepository.findByActiveTrueOrderByRegistrationNumberAsc()) {
+            if (!inScope(vehicle, cityId)) {
+                continue;
+            }
             if (!policyRepository.existsByVehicles_Id(vehicle.getId())) {
                 items.add(new MissingDocumentItem("ASSURANCE", vehicle.getId(), vehicle.getRegistrationNumber()));
             }
@@ -182,6 +197,11 @@ public class ComplianceAnalyticsService {
         }
 
         return items;
+    }
+
+    /** Vrai si le camion est dans la ville geree, ou si l'appelant voit tout (cityId null = admin). */
+    private boolean inScope(Vehicle vehicle, Long cityId) {
+        return cityId == null || (vehicle.getCity() != null && cityId.equals(vehicle.getCity().getId()));
     }
 
     private DocumentStatus statusFor(Long daysRemaining, int warningDays) {

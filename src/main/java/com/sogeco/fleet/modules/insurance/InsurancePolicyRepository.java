@@ -18,6 +18,24 @@ public interface InsurancePolicyRepository extends JpaRepository<InsurancePolicy
     @EntityGraph(attributePaths = {"insurer", "vehicles"})
     Page<InsurancePolicy> findAllBy(Pageable pageable);
 
+    /**
+     * Memes polices, restreintes a celles couvrant au moins un camion de
+     * la ville geree (RG-13.4) — une police peut couvrir plusieurs
+     * camions de villes differentes (ManyToMany), d'ou le DISTINCT et
+     * le countQuery explicite (sinon Spring Data compterait une police
+     * en double si plusieurs de ses camions sont dans la meme ville).
+     */
+    @EntityGraph(attributePaths = {"insurer", "vehicles"})
+    @Query(value = """
+           SELECT DISTINCT p FROM InsurancePolicy p JOIN p.vehicles v
+           WHERE v.city.id = :cityId
+           """,
+           countQuery = """
+           SELECT COUNT(DISTINCT p) FROM InsurancePolicy p JOIN p.vehicles v
+           WHERE v.city.id = :cityId
+           """)
+    Page<InsurancePolicy> findAllByVehicleCityId(@Param("cityId") Long cityId, Pageable pageable);
+
     @EntityGraph(attributePaths = {"insurer", "vehicles"})
     Optional<InsurancePolicy> findWithVehiclesById(Long id);
 
@@ -48,4 +66,20 @@ public interface InsurancePolicyRepository extends JpaRepository<InsurancePolicy
            WHERE p.startDate >= :from AND p.startDate <= :to
            """)
     BigDecimal totalPremiumCost(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    /**
+     * Meme total, restreint aux polices couvrant au moins un camion de la
+     * ville geree — filtrage de securite d'un gestionnaire non-administrateur
+     * (RG-13.4). cityId null = pas de filtre. EXISTS plutot qu'un JOIN : une
+     * police couvrant plusieurs camions de la meme ville ne doit compter
+     * qu'une fois, jamais multiplier sa prime par camion couvert.
+     */
+    @Query("""
+           SELECT COALESCE(SUM(p.premiumAmount), 0) FROM InsurancePolicy p
+           WHERE p.startDate >= :from AND p.startDate <= :to
+             AND (:cityId IS NULL OR EXISTS (
+                 SELECT 1 FROM p.vehicles v WHERE v.city.id = :cityId))
+           """)
+    BigDecimal totalPremiumCostForCity(@Param("from") LocalDate from, @Param("to") LocalDate to,
+                                       @Param("cityId") Long cityId);
 }

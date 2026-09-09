@@ -45,19 +45,24 @@ public class CarteRoseService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public PageResponse<CarteRoseResponse> list(Pageable pageable) {
-        return PageResponse.from(repository.findAllBy(pageable), CarteRoseResponse::from);
+        var page = SecurityUtils.currentCityId()
+                .map(cityId -> repository.findAllByVehicle_City_Id(cityId, pageable))
+                .orElseGet(() -> repository.findAllBy(pageable));
+        return PageResponse.from(page, CarteRoseResponse::from);
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public CarteRoseResponse get(Long id) {
-        return CarteRoseResponse.from(repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Carte rose", id)));
+        return CarteRoseResponse.from(find(id));
     }
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public List<CarteRoseResponse> forVehicle(Long vehicleId) {
+        if (!inScope(vehicleId)) {
+            return List.of();
+        }
         return repository.findByVehicleIdOrderByValidToDesc(vehicleId)
                 .stream().map(CarteRoseResponse::from).toList();
     }
@@ -113,8 +118,7 @@ public class CarteRoseService {
     @Transactional
     @PreAuthorize("hasAuthority('INSURANCE_UPDATE')")
     public CarteRoseResponse update(Long id, CarteRoseRequest request) {
-        CarteRose carte = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Carte rose", id));
+        CarteRose carte = find(id);
 
         EditWindowGuard.assertEditable(carte.getCreatedAt(),
                 settingService.getInt("carte_rose.edit_window_hours", 24), "RG-CR-EDIT", "Cette carte rose");
@@ -157,6 +161,31 @@ public class CarteRoseService {
     private Partner findInsurer(Long id) {
         return partnerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Assureur", id));
+    }
+
+    /**
+     * Point d'entree unique pour charger une carte rose par id —
+     * centralise ici la restriction de ville (RG-13.4). 404, jamais
+     * 403, pour ne pas confirmer que l'id existe ailleurs.
+     */
+    private CarteRose find(Long id) {
+        CarteRose carte = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Carte rose", id));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        if (cityId != null && (carte.getVehicle() == null || carte.getVehicle().getCity() == null
+                || !cityId.equals(carte.getVehicle().getCity().getId()))) {
+            throw new ResourceNotFoundException("Carte rose", id);
+        }
+        return carte;
+    }
+
+    /** Vrai si le camion est dans la ville geree, ou si l'appelant voit tout (admin). */
+    private boolean inScope(Long vehicleId) {
+        return SecurityUtils.currentCityId()
+                .map(cityId -> vehicleRepository.findById(vehicleId)
+                        .map(v -> v.getCity() != null && cityId.equals(v.getCity().getId()))
+                        .orElse(false))
+                .orElse(true);
     }
 
     /** Un chauffeur en saisie libre (SELF_MANAGE) ne peut viser que le camion qui lui est actuellement affecte. */

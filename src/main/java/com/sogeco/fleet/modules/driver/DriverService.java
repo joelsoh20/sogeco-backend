@@ -102,8 +102,11 @@ public class DriverService {
         Map<Long, VehicleAssignment> byDriver = activeAssignmentsByDriver();
         boolean salary = canSeeSalary();
 
-        return repository.findByActiveTrueAndPerformanceScoreIsNotNullOrderByPerformanceScoreDesc()
-                .stream()
+        List<Driver> ranked = SecurityUtils.currentCityId()
+                .map(repository::findByActiveTrueAndPerformanceScoreIsNotNullAndCity_IdOrderByPerformanceScoreDesc)
+                .orElseGet(repository::findByActiveTrueAndPerformanceScoreIsNotNullOrderByPerformanceScoreDesc);
+
+        return ranked.stream()
                 .map(driver -> {
                     VehicleAssignment assignment = byDriver.get(driver.getId());
                     return DriverResponse.from(driver,
@@ -143,8 +146,12 @@ public class DriverService {
 
         Map<Long, VehicleAssignment> byDriver = activeAssignmentsByDriver();
 
+        List<Driver> scopedDrivers = SecurityUtils.currentCityId()
+                .map(repository::findByCity)
+                .orElseGet(repository::findByActiveTrueOrderByLastNameAsc);
+
         List<DriverSemesterRankingResponse> results = new ArrayList<>();
-        for (Driver driver : repository.findByActiveTrueOrderByLastNameAsc()) {
+        for (Driver driver : scopedDrivers) {
             VehicleAssignment assignment = byDriver.get(driver.getId());
             City city = driver.getCity();
 
@@ -169,8 +176,9 @@ public class DriverService {
         }
         Map<Long, VehicleAssignment> byDriver = activeAssignmentsByDriver();
         boolean salary = canSeeSalary();
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
 
-        return repository.search(q.trim(), org.springframework.data.domain.PageRequest.of(0, 10)).stream()
+        return repository.search(q.trim(), cityId, org.springframework.data.domain.PageRequest.of(0, 10)).stream()
                 .map(driver -> {
                     VehicleAssignment assignment = byDriver.get(driver.getId());
                     return DriverResponse.from(driver,
@@ -224,6 +232,12 @@ public class DriverService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('DRIVER_READ')")
     public DriverStatsResponse stats(Long cityId) {
+        // Un gestionnaire non-administrateur ne peut interroger que sa propre
+        // ville : le cityId eventuellement transmis par l'appelant est ignore
+        // pour lui, jamais utilise tel quel (RG-13.4 — sinon un gestionnaire
+        // pourrait consulter les stats de n'importe quelle autre ville en
+        // changeant simplement le parametre de la requete).
+        cityId = SecurityUtils.currentCityId().orElse(cityId);
         List<Driver> drivers = cityId == null
                 ? repository.findByActiveTrueOrderByLastNameAsc()
                 : repository.findByCity(cityId);
@@ -268,7 +282,10 @@ public class DriverService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('DRIVER_READ')")
     public List<DriverResponse> unassigned() {
-        return repository.findUnassigned().stream()
+        List<Driver> drivers = SecurityUtils.currentCityId()
+                .map(repository::findUnassignedForCity)
+                .orElseGet(repository::findUnassigned);
+        return drivers.stream()
                 .map(driver -> DriverResponse.from(driver, null, null, null))
                 .toList();
     }
@@ -597,8 +614,22 @@ public class DriverService {
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", userId));
     }
 
+    /**
+     * Point d'entree unique pour charger un chauffeur par id — centralise
+     * ici la restriction de ville (RG-13.4) : un gestionnaire non-admin
+     * ne doit pas pouvoir consulter/modifier un chauffeur d'une autre
+     * ville, meme en devinant son id (IDOR). Sans effet sur un compte
+     * chauffeur (SELF_READ) qui n'a pas de ville geree : assertCanView
+     * reste le seul garde-fou pour lui, via isSelf(). 404, jamais 403,
+     * pour ne pas confirmer que l'id existe ailleurs dans l'entreprise.
+     */
     private Driver find(Long id) {
-        return repository.findById(id)
+        Driver driver = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Chauffeur", id));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        if (cityId != null && (driver.getCity() == null || !cityId.equals(driver.getCity().getId()))) {
+            throw new ResourceNotFoundException("Chauffeur", id);
+        }
+        return driver;
     }
 }

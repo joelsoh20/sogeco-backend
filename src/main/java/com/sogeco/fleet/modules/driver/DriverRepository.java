@@ -45,6 +45,10 @@ public interface DriverRepository extends JpaRepository<Driver, Long>, JpaSpecif
     @EntityGraph(attributePaths = "city")
     List<Driver> findByActiveTrueAndPerformanceScoreIsNotNullOrderByPerformanceScoreDesc();
 
+    /** Meme classement, restreint a une ville — filtrage de securite d'un gestionnaire non-administrateur. */
+    @EntityGraph(attributePaths = "city")
+    List<Driver> findByActiveTrueAndPerformanceScoreIsNotNullAndCity_IdOrderByPerformanceScoreDesc(Long cityId);
+
     @Query("SELECT AVG(d.performanceScore) FROM Driver d WHERE d.active = true AND d.performanceScore IS NOT NULL")
     BigDecimal averagePerformanceScore();
 
@@ -65,6 +69,19 @@ public interface DriverRepository extends JpaRepository<Driver, Long>, JpaSpecif
            """)
     List<Driver> findUnassigned();
 
+    /** Meme liste, restreinte a une ville — filtrage de securite d'un gestionnaire non-administrateur. */
+    @Query("""
+           SELECT d FROM Driver d
+           WHERE d.active = true
+             AND d.status = com.sogeco.fleet.common.enums.DriverStatus.ACTIF
+             AND d.city.id = :cityId
+             AND NOT EXISTS (
+                 SELECT 1 FROM VehicleAssignment a
+                 WHERE a.driver = d AND a.endDate IS NULL)
+           ORDER BY d.lastName ASC
+           """)
+    List<Driver> findUnassignedForCity(@Param("cityId") Long cityId);
+
     @Query("""
            SELECT d FROM Driver d
            WHERE d.active = true AND d.city.id = :cityId
@@ -72,15 +89,19 @@ public interface DriverRepository extends JpaRepository<Driver, Long>, JpaSpecif
            """)
     List<Driver> findByCity(@Param("cityId") Long cityId);
 
-    /** Recherche pour la barre de recherche du tableau de bord — nom, prenom ou matricule. */
+    /**
+     * Recherche pour la barre de recherche du tableau de bord — nom,
+     * prenom ou matricule. cityId null = pas de filtre (administrateur).
+     */
     @EntityGraph(attributePaths = "city")
     @Query("""
            SELECT d FROM Driver d
            WHERE d.active = true
+             AND (:cityId IS NULL OR d.city.id = :cityId)
              AND (LOWER(d.firstName) LIKE LOWER(CONCAT('%', :q, '%'))
                OR LOWER(d.lastName) LIKE LOWER(CONCAT('%', :q, '%'))
                OR LOWER(d.matricule) LIKE LOWER(CONCAT('%', :q, '%')))
            ORDER BY d.lastName ASC
            """)
-    List<Driver> search(@Param("q") String q, Pageable pageable);
+    List<Driver> search(@Param("q") String q, @Param("cityId") Long cityId, Pageable pageable);
 }

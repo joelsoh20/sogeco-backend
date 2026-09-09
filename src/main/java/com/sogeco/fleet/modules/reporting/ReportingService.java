@@ -3,6 +3,7 @@ package com.sogeco.fleet.modules.reporting;
 import com.sogeco.fleet.common.enums.CostCategory;
 import com.sogeco.fleet.common.enums.MaintenanceCategory;
 import com.sogeco.fleet.common.enums.MissionStatus;
+import com.sogeco.fleet.common.security.SecurityUtils;
 import com.sogeco.fleet.modules.city.City;
 import com.sogeco.fleet.modules.fuel.FuelLogRepository;
 import com.sogeco.fleet.modules.insurance.InsurancePolicyRepository;
@@ -59,10 +60,11 @@ public class ReportingService {
     public List<VehicleProfitability> vehicleProfitability(LocalDate from, LocalDate to) {
         Instant start = toInstant(from);
         Instant end = toInstant(to.plusDays(1));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
 
         List<VehicleProfitability> results = new ArrayList<>();
 
-        for (Object[] row : missionRepository.aggregateProfitabilityByVehicle(start, end)) {
+        for (Object[] row : missionRepository.aggregateProfitabilityByVehicle(start, end, cityId)) {
             Long vehicleId = (Long) row[0];
             String registration = (String) row[1];
             long missionCount = (Long) row[2];
@@ -94,9 +96,10 @@ public class ReportingService {
     public List<ClientProfitability> clientProfitability(LocalDate from, LocalDate to) {
         Instant start = toInstant(from);
         Instant end = toInstant(to.plusDays(1));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
         List<ClientProfitability> results = new ArrayList<>();
 
-        for (Object[] row : missionRepository.aggregateProfitabilityByClient(start, end)) {
+        for (Object[] row : missionRepository.aggregateProfitabilityByClient(start, end, cityId)) {
             BigDecimal revenue = (BigDecimal) row[3];
             BigDecimal margin = (BigDecimal) row[5];
             results.add(new ClientProfitability(
@@ -111,9 +114,10 @@ public class ReportingService {
     public List<CorridorProfitability> corridorProfitability(LocalDate from, LocalDate to) {
         Instant start = toInstant(from);
         Instant end = toInstant(to.plusDays(1));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
         List<CorridorProfitability> results = new ArrayList<>();
 
-        for (Object[] row : missionRepository.aggregateProfitabilityByRoute(start, end)) {
+        for (Object[] row : missionRepository.aggregateProfitabilityByRoute(start, end, cityId)) {
             BigDecimal cost = (BigDecimal) row[4];
             BigDecimal km = (BigDecimal) row[6];
             results.add(new CorridorProfitability(
@@ -129,9 +133,10 @@ public class ReportingService {
     public List<AgencyProfitability> agencyProfitability(LocalDate from, LocalDate to) {
         Instant start = toInstant(from);
         Instant end = toInstant(to.plusDays(1));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
         List<AgencyProfitability> results = new ArrayList<>();
 
-        for (Object[] row : missionRepository.aggregateProfitabilityByAgency(start, end)) {
+        for (Object[] row : missionRepository.aggregateProfitabilityByAgency(start, end, cityId)) {
             results.add(new AgencyProfitability(
                     (Long) row[0], (String) row[1], (Long) row[2],
                     (BigDecimal) row[3], (BigDecimal) row[4], (BigDecimal) row[5]));
@@ -166,7 +171,8 @@ public class ReportingService {
         }
 
         List<VehicleExpenseSummary> results = new ArrayList<>();
-        for (Vehicle vehicle : vehicleRepository.findByActiveTrueOrderByRegistrationNumberAsc()) {
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+        for (Vehicle vehicle : vehicleRepository.findActiveForCity(cityId)) {
             BigDecimal[] months = byVehicle.get(vehicle.getId());
             List<MonthlyAmount> monthly = new ArrayList<>();
             BigDecimal yearTotal = BigDecimal.ZERO;
@@ -250,8 +256,9 @@ public class ReportingService {
     private CostBreakdownResponse computeCostBreakdown(LocalDate from, LocalDate to) {
         Instant start = toInstant(from);
         Instant end = toInstant(to.plusDays(1));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
 
-        List<Object[]> rows = missionRepository.aggregateCostComponents(start, end);
+        List<Object[]> rows = missionRepository.aggregateCostComponents(start, end, cityId);
         Object[] row = rows.isEmpty()
                 ? new Object[]{BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO}
                 : rows.get(0);
@@ -260,14 +267,14 @@ public class ReportingService {
         BigDecimal toll = (BigDecimal) row[1];
         BigDecimal other = (BigDecimal) row[3];
         BigDecimal missionFee = (BigDecimal) row[4];
-        BigDecimal insurance = insurancePolicyRepository.totalPremiumCost(from, to);
-        BigDecimal inspection = technicalInspectionRepository.totalCost(from, to);
+        BigDecimal insurance = insurancePolicyRepository.totalPremiumCostForCity(from, to, cityId);
+        BigDecimal inspection = technicalInspectionRepository.totalCostForCity(from, to, cityId);
 
         // LAVERIE isolee du reste de la maintenance : meme requete groupee par
         // categorie que l'anneau de l'ecran Maintenance, pas un second total.
         BigDecimal maintenance = BigDecimal.ZERO;
         BigDecimal laverie = BigDecimal.ZERO;
-        for (Object[] maintenanceRow : maintenanceRepository.aggregateByCategory(from, to)) {
+        for (Object[] maintenanceRow : maintenanceRepository.aggregateByCategoryForCity(from, to, cityId)) {
             BigDecimal cost = (BigDecimal) maintenanceRow[2];
             if (maintenanceRow[0] == MaintenanceCategory.LAVERIE) {
                 laverie = laverie.add(cost);
@@ -308,6 +315,7 @@ public class ReportingService {
         List<MonthlyFinancialPoint> points = new ArrayList<>();
         LocalDate cursor = from.withDayOfMonth(1);
         LocalDate lastMonth = to.withDayOfMonth(1);
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
 
         while (!cursor.isAfter(lastMonth)) {
             LocalDate monthEnd = cursor.plusMonths(1).minusDays(1);
@@ -316,13 +324,13 @@ public class ReportingService {
             Instant start = toInstant(cursor);
             Instant end = toInstant(effectiveEnd.plusDays(1));
 
-            List<Mission> completed = missionRepository.findByStatusAndActualEndBetween(
-                    MissionStatus.TERMINEE, start, end);
+            List<Mission> completed = inScope(missionRepository.findByStatusAndActualEndBetween(
+                    MissionStatus.TERMINEE, start, end), cityId);
 
             BigDecimal revenue = sum(completed, Mission::getRevenueAmount);
             BigDecimal directCost = sum(completed, Mission::getTotalCost);
             BigDecimal directMargin = sum(completed, Mission::getMarginAmount);
-            BigDecimal maintenanceCost = maintenanceRepository.totalCost(cursor, effectiveEnd);
+            BigDecimal maintenanceCost = maintenanceRepository.totalCostForCity(cursor, effectiveEnd, cityId);
             CostBreakdownResponse monthBreakdown = computeCostBreakdown(cursor, effectiveEnd);
 
             points.add(new MonthlyFinancialPoint(
@@ -347,6 +355,10 @@ public class ReportingService {
         LocalDate cursor = from.withDayOfMonth(1);
         LocalDate lastMonth = to.withDayOfMonth(1);
 
+        // Un gestionnaire non-administrateur ne voit ici que sa propre ville
+        // (RG-13.4) au lieu des 3 villes d'implantation actives.
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
+
         while (!cursor.isAfter(lastMonth)) {
             LocalDate monthEnd = cursor.plusMonths(1).minusDays(1);
             LocalDate effectiveEnd = monthEnd.isAfter(to) ? to : monthEnd;
@@ -354,8 +366,12 @@ public class ReportingService {
             Instant start = toInstant(cursor);
             Instant end = toInstant(effectiveEnd.plusDays(1));
 
-            BigDecimal fuelCost = fuelLogRepository.totalCostForCities(start, end, ACTIVE_CITY_NAMES);
-            BigDecimal maintenanceCost = maintenanceRepository.totalCostForCities(cursor, effectiveEnd, ACTIVE_CITY_NAMES);
+            BigDecimal fuelCost = cityId == null
+                    ? fuelLogRepository.totalCostForCities(start, end, ACTIVE_CITY_NAMES)
+                    : fuelLogRepository.totalCostForCity(start, end, cityId);
+            BigDecimal maintenanceCost = cityId == null
+                    ? maintenanceRepository.totalCostForCities(cursor, effectiveEnd, ACTIVE_CITY_NAMES)
+                    : maintenanceRepository.totalCostForCity(cursor, effectiveEnd, cityId);
 
             points.add(new FleetPerformancePoint(cursor, fuelCost, maintenanceCost));
 
@@ -376,16 +392,17 @@ public class ReportingService {
     public FleetKpis fleetKpis(LocalDate from, LocalDate to, int punctualityMarginMinutes) {
         Instant start = toInstant(from);
         Instant end = toInstant(to.plusDays(1));
+        Long cityId = SecurityUtils.currentCityId().orElse(null);
 
-        List<Mission> completed = missionRepository.findByStatusAndActualEndBetween(
-                MissionStatus.TERMINEE, start, end);
+        List<Mission> completed = inScope(missionRepository.findByStatusAndActualEndBetween(
+                MissionStatus.TERMINEE, start, end), cityId);
 
         BigDecimal revenue = sum(completed, Mission::getRevenueAmount);
         BigDecimal directCost = sum(completed, Mission::getTotalCost);
         BigDecimal directMargin = sum(completed, Mission::getMarginAmount);
         BigDecimal km = sum(completed, Mission::getDistanceKm);
 
-        BigDecimal maintenanceCost = maintenanceRepository.totalCost(from, to);
+        BigDecimal maintenanceCost = maintenanceRepository.totalCostForCity(from, to, cityId);
         BigDecimal netMargin = directMargin.subtract(maintenanceCost);
         BigDecimal totalCost = directCost.add(maintenanceCost);
 
@@ -399,7 +416,9 @@ public class ReportingService {
                 : fillRates.stream().reduce(BigDecimal.ZERO, BigDecimal::add)
                     .divide(BigDecimal.valueOf(fillRates.size()), 1, RoundingMode.HALF_UP);
 
-        long fleetSize = vehicleRepository.countByActiveTrue();
+        long fleetSize = cityId == null
+                ? vehicleRepository.countByActiveTrue()
+                : vehicleRepository.countByActiveTrueAndCity_Id(cityId);
         long periodMinutes = Duration.between(start, end).toMinutes();
         Double missionMinutes = missionRepository.totalMissionMinutes(start, end);
         BigDecimal utilization = fleetSize == 0 || periodMinutes == 0
@@ -414,26 +433,42 @@ public class ReportingService {
                 withArrival == 0 ? null : BigDecimal.valueOf(onTime * 100.0 / withArrival)
                         .setScale(1, RoundingMode.HALF_UP),
                 avgFillRate,
-                availabilityRate(),
+                availabilityRate(cityId),
                 km.signum() == 0 ? null : totalCost.divide(km, 2, RoundingMode.HALF_UP),
                 km);
     }
 
     // ------------------------------------------------------------------
 
-    private BigDecimal availabilityRate() {
-        long total = vehicleRepository.countByActiveTrue();
+    /** Vrai si la mission est rattachee a un camion de la ville geree, ou si l'appelant voit tout (cityId null = admin). */
+    private List<Mission> inScope(List<Mission> missions, Long cityId) {
+        if (cityId == null) {
+            return missions;
+        }
+        return missions.stream()
+                .filter(m -> m.getVehicle() != null && m.getVehicle().getCity() != null
+                        && cityId.equals(m.getVehicle().getCity().getId()))
+                .toList();
+    }
+
+    private BigDecimal availabilityRate(Long cityId) {
+        long total = cityId == null
+                ? vehicleRepository.countByActiveTrue()
+                : vehicleRepository.countByActiveTrueAndCity_Id(cityId);
         if (total == 0) {
             return BigDecimal.ZERO;
         }
-        long immobilized = vehicleRepository.countByStatusAndActiveTrue(
-                        com.sogeco.fleet.common.enums.VehicleStatus.EN_MAINTENANCE)
-                + vehicleRepository.countByStatusAndActiveTrue(
-                        com.sogeco.fleet.common.enums.VehicleStatus.EN_PANNE)
-                + vehicleRepository.countByStatusAndActiveTrue(
-                        com.sogeco.fleet.common.enums.VehicleStatus.HORS_SERVICE);
+        long immobilized = countImmobilized(com.sogeco.fleet.common.enums.VehicleStatus.EN_MAINTENANCE, cityId)
+                + countImmobilized(com.sogeco.fleet.common.enums.VehicleStatus.EN_PANNE, cityId)
+                + countImmobilized(com.sogeco.fleet.common.enums.VehicleStatus.HORS_SERVICE, cityId);
 
         return BigDecimal.valueOf((total - immobilized) * 100.0 / total).setScale(1, RoundingMode.HALF_UP);
+    }
+
+    private long countImmobilized(com.sogeco.fleet.common.enums.VehicleStatus status, Long cityId) {
+        return cityId == null
+                ? vehicleRepository.countByStatusAndActiveTrue(status)
+                : vehicleRepository.countByStatusAndActiveTrueAndCity_Id(status, cityId);
     }
 
     private BigDecimal percent(BigDecimal part, BigDecimal total) {
