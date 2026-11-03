@@ -87,3 +87,28 @@ Configurer le boîtier (carte SIM, adresse du serveur Traccar 13.53.244.90 + le 
 Vérifier sur Traccar (13.53.244.90:8082 → menu Appareils) — grâce à database.registerUnknown=true déjà activé, le boîtier apparaît automatiquement dès sa première trame, même sans IMEI déclaré à l'avance. Pas besoin de le créer manuellement côté Traccar.
 Récupérer l'IMEI — c'est le champ Identifiant affiché sur la fiche de l'appareil dans Traccar.
 Coller cet IMEI dans l'app — champ "Identifiant boîtier GPS" (deviceId) sur la fiche du camion concerné, dans le fleet-manager.
+
+Configuration terminée et poussée. Traccar est maintenant configuré pour reconnaître 24 protocoles couvrant les marques de boîtiers GPS les plus répandues (vérifié directement dans les classes de l'image Docker, pas de suppositions) :
+
+Protocole	Port	Marques typiques
+gt06	5023	Concox GT06/GT06N — très répandu, demandé explicitement
+gt02	5022	Concox (autre modèle)
+tk103, tk102	5002, 5036	Clones TK102/TK103, courants et bon marché
+gl100, gl200	5003, 5004	Queclink
+suntech	5011	Suntech
+teltonika	5027	Teltonika FMB — très répandu en flotte pro
+meitrack	5020	Meitrack
+cellocator	5033	Cellocator
+xexun, totem	5006, 5007	Marques budget courantes
+ruptela	5046	Ruptela
+calamp	5082	CalAmp — marque commerciale majeure
+atrack	5044	Atrack
+watch	5093	Montres GPS (courantes en Afrique)
+eelink	5064	Eelink
+globalsat, gosafe	5043, 5078	—
+huabao	5015	Norme chinoise JT/T 808
+h02, meiligao	5013, 5009	Réactivés/corrigés (h02 était par erreur sur le port de meiligao)
+
+Deux pistes distinctes possibles, il faut d'abord savoir laquelle c'est. Le plus rapide pour trancher : va sur le terminal SSH et regarde l'activité récente de ce boîtier précisément :
+
+grep 68053059965558 /opt/traccar/logs/tracker-server.log | tail -40
