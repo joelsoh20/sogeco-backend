@@ -25,7 +25,7 @@
          application, plus une restriction reseau. Voir section 7.
 
          Format attendu par Traccar : "Nom-Entete: valeur" (documente sur
-         traccar.org/configuration-file) -- une valeur brute sans nom
+         traccar.org/configuration-file) : une valeur brute sans nom
          d'en-tete, comme c'etait le cas ici, ne produit jamais l'en-tete
          X-Webhook-Secret attendu par TelematicsWebhookController, donc
          chaque trame etait rejetee en 401 : les positions n'atteignaient
@@ -53,7 +53,7 @@
          accepter un boitier sans configuration prealable au cas par cas.
          Chaque port est celui documente comme port par defaut de Traccar
          pour ce protocole (verifie contre les classes reellement presentes
-         dans l'image traccar/traccar:latest, pas suppose) -- un boitier dont
+         dans l'image traccar/traccar:latest, pas suppose) : un boitier dont
          le firmware pointe vers ce port "de reference" fonctionne donc sans
          reconfiguration. meiligao (LT08 et compatibles) sur son port
          standard 5009, comme confirme precedemment. -->

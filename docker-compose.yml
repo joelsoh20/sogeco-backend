@@ -39,7 +39,9 @@ services:
       retries: 5
 
   traccar:
-    image: traccar/traccar:latest
+    # Version figee (derniere stable). Pour mettre a jour : changer le tag,
+    # puis `docker compose pull traccar && docker compose up -d traccar`.
+    image: traccar/traccar:6.17.0
     container_name: sogeco-traccar
     restart: unless-stopped
     environment:

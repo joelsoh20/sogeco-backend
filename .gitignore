@@ -35,3 +35,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Surcharge locale Windows
+docker-compose.override.yml
