@@ -123,7 +123,19 @@ sogeco:
   gps:
     retention-days: 90
   map:
-    provider: osm
+    # Fond de carte affiche par le frontend : "osm" (Leaflet) ou "google".
+    # "google" n'est effectif que si une cle est renseignee ci-dessous ; sinon
+    # le frontend retombe sur OSM (voir MapConfigController). Le geocodage et
+    # le calcul d'itineraire restent assures par ORS/Nominatim.
+    provider: ${MAP_PROVIDER:osm}
+    google:
+      # Cle Maps JavaScript API, destinee au NAVIGATEUR : elle est visible du
+      # client par construction. A restreindre dans Google Cloud Console par
+      # referent HTTP (domaine du frontend) et a l'API Maps JavaScript seule.
+      # Ne jamais y mettre une cle serveur (Geocoding/Routes).
+      api-key: ${GOOGLE_MAPS_API_KEY:}
+      # Optionnel : ID de carte (style cloud, requis pour les marqueurs avances).
+      map-id: ${GOOGLE_MAPS_MAP_ID:}
   cors:
     # Sans variable d'environnement, comportement inchange (localhost:5173).
     # Un hebergeur — ou un frontend local pointant sur son URL, comme ici
