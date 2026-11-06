@@ -87,6 +87,20 @@ public class ReportingService {
                     km.signum() == 0 ? null : totalCost.divide(km, 2, RoundingMode.HALF_UP)));
         }
 
+        // Camion sans mission terminee sur la periode : il reste dans le classement (recette nulle,
+        // marge nette = maintenance en negatif), au lieu de disparaitre et de laisser l'ecran vide.
+        java.util.Set<Long> listed = new java.util.HashSet<>();
+        results.forEach(r -> listed.add(r.vehicleId()));
+        for (var vehicle : vehicleRepository.findActiveForCity(cityId)) {
+            if (listed.contains(vehicle.getId())) {
+                continue;
+            }
+            BigDecimal maintenanceCost = maintenanceRepository.totalCostForVehicle(vehicle.getId(), from, to);
+            results.add(new VehicleProfitability(
+                    vehicle.getId(), vehicle.getRegistrationNumber(), 0, BigDecimal.ZERO, BigDecimal.ZERO,
+                    BigDecimal.ZERO, maintenanceCost, maintenanceCost.negate(), null, BigDecimal.ZERO, null));
+        }
+
         results.sort((a, b) -> b.netMargin().compareTo(a.netMargin()));
         return results;
     }
