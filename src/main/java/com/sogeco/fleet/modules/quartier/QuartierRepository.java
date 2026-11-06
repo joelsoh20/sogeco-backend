@@ -10,6 +10,8 @@ public interface QuartierRepository extends JpaRepository<Quartier, Long>, JpaSp
 
     List<Quartier> findByCityIdAndActiveTrueOrderByNameAsc(Long cityId);
 
+    List<Quartier> findByActiveTrueOrderByNameAsc();
+
     Optional<Quartier> findByNameIgnoreCaseAndCityId(String name, Long cityId);
 
     boolean existsByNameIgnoreCaseAndCityId(String name, Long cityId);

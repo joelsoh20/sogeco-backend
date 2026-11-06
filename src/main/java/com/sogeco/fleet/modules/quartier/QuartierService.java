@@ -46,6 +46,14 @@ public class QuartierService {
                 .stream().map(QuartierResponse::from).toList();
     }
 
+    /** Tous les quartiers actifs, toutes villes confondues : affichage sur la carte de mission. */
+    @Transactional(readOnly = true)
+    @PreAuthorize("isAuthenticated()")
+    public List<QuartierResponse> listActive() {
+        return repository.findByActiveTrueOrderByNameAsc()
+                .stream().map(QuartierResponse::from).toList();
+    }
+
     @Transactional(readOnly = true)
     @PreAuthorize("isAuthenticated()")
     public QuartierResponse get(Long id) {

@@ -34,9 +34,9 @@ public class QuartierController {
     }
 
     @GetMapping("/active")
-    @Operation(summary = "Lister les quartiers actifs d'une ville, pour les listes deroulantes")
-    public List<QuartierResponse> listActive(@RequestParam Long cityId) {
-        return service.listActiveForCity(cityId);
+    @Operation(summary = "Lister les quartiers actifs, d'une ville si cityId est fourni, sinon de toutes les villes")
+    public List<QuartierResponse> listActive(@RequestParam(required = false) Long cityId) {
+        return cityId == null ? service.listActive() : service.listActiveForCity(cityId);
     }
 
     @GetMapping("/{id}")
