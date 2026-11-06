@@ -28,6 +28,10 @@ public record VehicleExpenseReport(
         long fleetMissionCount,
         BigDecimal fleetRevenue,
         BigDecimal fleetKm,
+        /** Carburant consomme au garage pour les essais (litres), hors cout : toute la flotte du rapport. */
+        BigDecimal fleetTestFuelLiters,
+        /** Jours passes en panne (reparations de la periode), toute la flotte du rapport. */
+        long fleetDowntimeDays,
         List<VehicleSection> vehicles
 ) {
 
@@ -76,7 +80,11 @@ public record VehicleExpenseReport(
             BigDecimal revenue,
             BigDecimal missionMargin,
             /** Depenses totales / km parcourus en mission ; null sans distance. */
-            BigDecimal expensePerKm
+            BigDecimal expensePerKm,
+            /** Carburant consomme au garage pour les essais (litres) sur la periode. */
+            BigDecimal testFuelLiters,
+            /** Jours passes en panne sur la periode (somme des reparations). */
+            long downtimeDays
     ) {
     }
 }

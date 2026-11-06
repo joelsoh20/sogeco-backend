@@ -104,6 +104,15 @@ public class MaintenanceService {
     public MaintenanceResponse create(MaintenanceRequest request) {
         Vehicle vehicle = findVehicle(request.vehicleId());
 
+        if (request.category().requiresBreakdown()
+                && vehicle.getStatus() != VehicleStatus.EN_PANNE
+                && vehicle.getStatus() != VehicleStatus.EN_MAINTENANCE) {
+            throw new BusinessException("RG-7.11",
+                    "Une reparation ne peut etre ouverte que sur un camion declare en panne : "
+                            + "declarez d'abord la panne depuis la fiche du camion",
+                    HttpStatus.CONFLICT);
+        }
+
         MaintenanceLog maintenance = MaintenanceLog.builder()
                 .vehicle(vehicle)
                 .garage(request.partnerId() == null ? null : partnerRepository.findById(request.partnerId())
@@ -114,7 +123,8 @@ public class MaintenanceService {
                 .completionDate(request.completionDate())
                 .odometerKm(request.odometerKm() == null ? vehicle.getCurrentKilometers() : request.odometerKm())
                 .testFuelLiters(request.testFuelLiters())
-                .isBreakdown(Boolean.TRUE.equals(request.isBreakdown()))
+                .downtimeDays(request.downtimeDays() == null ? 0 : request.downtimeDays())
+                .isBreakdown(request.category().requiresBreakdown() || Boolean.TRUE.equals(request.isBreakdown()))
                 .errorCode(request.errorCode())
                 .nextInterventionDate(request.nextInterventionDate())
                 .nextInterventionKm(request.nextInterventionKm())
@@ -123,14 +133,7 @@ public class MaintenanceService {
                 .status(MaintenanceStatus.PLANIFIEE)
                 .build();
 
-        if (request.items() != null) {
-            request.items().forEach(item -> maintenance.addItem(MaintenanceItem.builder()
-                    .itemType(item.itemType())
-                    .label(item.label())
-                    .quantity(item.quantity())
-                    .unitPrice(item.unitPrice())
-                    .build()));
-        }
+        applyAmountOrItems(maintenance, request);
         maintenance.recomputeCosts();
 
         detectRecurrence(maintenance, null);
@@ -174,22 +177,24 @@ public class MaintenanceService {
         maintenance.setCategory(request.category());
         maintenance.setDescription(request.description());
         maintenance.setInterventionDate(request.interventionDate());
-        maintenance.setOdometerKm(request.odometerKm());
-        maintenance.setTestFuelLiters(request.testFuelLiters());
-        maintenance.setIsBreakdown(Boolean.TRUE.equals(request.isBreakdown()));
-        maintenance.setErrorCode(request.errorCode());
-        maintenance.setNextInterventionDate(request.nextInterventionDate());
-        maintenance.setNextInterventionKm(request.nextInterventionKm());
-
-        if (request.items() != null) {
-            maintenance.getItems().clear();
-            request.items().forEach(item -> maintenance.addItem(MaintenanceItem.builder()
-                    .itemType(item.itemType())
-                    .label(item.label())
-                    .quantity(item.quantity())
-                    .unitPrice(item.unitPrice())
-                    .build()));
+        if (request.odometerKm() != null) {
+            maintenance.setOdometerKm(request.odometerKm());
         }
+        if (request.downtimeDays() != null) {
+            maintenance.setDowntimeDays(request.downtimeDays());
+        }
+        maintenance.setTestFuelLiters(request.testFuelLiters());
+        maintenance.setIsBreakdown(request.category().requiresBreakdown() || Boolean.TRUE.equals(request.isBreakdown()));
+        maintenance.setErrorCode(request.errorCode());
+        // Prochaine intervention : plus saisie dans le formulaire, la valeur deja enregistree est conservee.
+        if (request.nextInterventionDate() != null) {
+            maintenance.setNextInterventionDate(request.nextInterventionDate());
+        }
+        if (request.nextInterventionKm() != null) {
+            maintenance.setNextInterventionKm(request.nextInterventionKm());
+        }
+
+        applyAmountOrItems(maintenance, request);
         maintenance.recomputeCosts();
         detectRecurrence(maintenance, id);
 
@@ -239,6 +244,32 @@ public class MaintenanceService {
     // ------------------------------------------------------------------
     // Regles
     // ------------------------------------------------------------------
+
+    /**
+     * Cout de l'intervention. Le formulaire saisit une somme totale depensee : elle
+     * est enregistree comme une ligne unique, ce qui alimente les memes colonnes de
+     * cout (et donc les rapports) que le detail pieces / main d'oeuvre. Sans somme,
+     * le detail des lignes eventuellement fourni est conserve tel quel.
+     */
+    private void applyAmountOrItems(MaintenanceLog maintenance, MaintenanceRequest request) {
+        if (request.amount() != null) {
+            maintenance.getItems().clear();
+            maintenance.addItem(MaintenanceItem.builder()
+                    .itemType(com.sogeco.fleet.common.enums.MaintenanceItemType.MAIN_OEUVRE)
+                    .label("Intervention")
+                    .quantity(BigDecimal.ONE)
+                    .unitPrice(request.amount())
+                    .build());
+        } else if (request.items() != null) {
+            maintenance.getItems().clear();
+            request.items().forEach(item -> maintenance.addItem(MaintenanceItem.builder()
+                    .itemType(item.itemType())
+                    .label(item.label())
+                    .quantity(item.quantity())
+                    .unitPrice(item.unitPrice())
+                    .build()));
+        }
+    }
 
     /**
      * Retour en atelier : meme camion, meme categorie, sous la fenetre

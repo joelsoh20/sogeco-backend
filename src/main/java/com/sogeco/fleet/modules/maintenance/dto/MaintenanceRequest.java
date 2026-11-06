@@ -50,6 +50,14 @@ public record MaintenanceRequest(
         @PositiveOrZero
         BigDecimal nextInterventionKm,
 
+        @PositiveOrZero(message = "le temps passe en panne ne peut pas etre negatif")
+        @Schema(description = "Temps passe en panne, en jours : saisi pour une reparation, repris dans le rapport du camion")
+        Integer downtimeDays,
+
+        @PositiveOrZero(message = "la somme depensee ne peut pas etre negative")
+        @Schema(description = "Somme totale depensee (FCFA), alternative au detail des lignes")
+        BigDecimal amount,
+
         Long invoiceDocumentId,
 
         @Valid

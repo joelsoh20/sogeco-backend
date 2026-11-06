@@ -72,6 +72,18 @@ public class VehicleController {
         return service.changeStatus(id, status);
     }
 
+    @PostMapping("/{id}/breakdown")
+    @Operation(summary = "Declarer le camion en panne")
+    public VehicleDetailResponse declareBreakdown(@PathVariable Long id) {
+        return service.declareBreakdown(id);
+    }
+
+    @DeleteMapping("/{id}/breakdown")
+    @Operation(summary = "Remettre en service un camion en panne")
+    public VehicleDetailResponse backInService(@PathVariable Long id) {
+        return service.backInService(id);
+    }
+
     @PatchMapping("/{id}/odometer")
     @Operation(summary = "Corriger le kilometrage — administrateur uniquement")
     public VehicleDetailResponse correctOdometer(@PathVariable Long id,

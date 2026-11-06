@@ -128,7 +128,8 @@ public class MaintenanceLog extends BaseEntity {
     public void complete(LocalDate date) {
         this.status = MaintenanceStatus.TERMINEE;
         this.completionDate = date == null ? LocalDate.now() : date;
-        if (interventionDate != null) {
+        // Temps de panne saisi a l'ouverture : il prime. Sinon, duree de l'intervention.
+        if (interventionDate != null && (downtimeDays == null || downtimeDays == 0)) {
             this.downtimeDays = (int) java.time.temporal.ChronoUnit.DAYS
                     .between(interventionDate, this.completionDate);
         }

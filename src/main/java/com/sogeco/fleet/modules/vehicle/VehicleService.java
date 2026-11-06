@@ -258,6 +258,37 @@ public class VehicleService {
         return get(id);
     }
 
+    /**
+     * Declaration de panne depuis la page Maintenance : le camion ne peut plus recevoir de mission
+     * et une reparation peut alors etre ouverte dessus (RG-7.11).
+     */
+    @Transactional
+    @PreAuthorize("hasAnyAuthority('VEHICLE_UPDATE','MAINTENANCE_CREATE')")
+    public VehicleDetailResponse declareBreakdown(Long id) {
+        Vehicle vehicle = find(id);
+        if (vehicle.getStatus() == VehicleStatus.EN_MISSION) {
+            throw new BusinessException("RG-4.3",
+                    "Ce camion est en mission, terminez ou annulez la mission d'abord", HttpStatus.CONFLICT);
+        }
+        if (vehicle.getStatus() == VehicleStatus.HORS_SERVICE) {
+            throw new BusinessException("RG-4.2", "Ce camion est hors service", HttpStatus.CONFLICT);
+        }
+        vehicle.setStatus(VehicleStatus.EN_PANNE);
+        return get(id);
+    }
+
+    /** Fin de panne sans intervention (la cloture d'une reparation libere deja le camion). */
+    @Transactional
+    @PreAuthorize("hasAnyAuthority('VEHICLE_UPDATE','MAINTENANCE_CREATE')")
+    public VehicleDetailResponse backInService(Long id) {
+        Vehicle vehicle = find(id);
+        if (vehicle.getStatus() != VehicleStatus.EN_PANNE) {
+            throw new BusinessException("RG-4.2", "Ce camion n'est pas en panne", HttpStatus.CONFLICT);
+        }
+        vehicle.setStatus(VehicleStatus.DISPONIBLE);
+        return get(id);
+    }
+
     /** Correction a la baisse, reservee aux administrateurs et tracee. */
     @Transactional
     @PreAuthorize("hasRole('ROLE_ADMIN')")

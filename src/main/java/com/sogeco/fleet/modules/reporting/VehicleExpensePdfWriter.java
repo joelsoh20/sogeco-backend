@@ -92,12 +92,15 @@ public class VehicleExpensePdfWriter {
         doc.add(period);
 
         // Chiffres cles
-        PdfPTable kpis = new PdfPTable(4);
+        PdfPTable kpis = new PdfPTable(3);
         kpis.setWidthPercentage(100);
         kpis.addCell(kpi("Dépenses totales", fcfa(r.fleetTotalExpenses())));
         kpis.addCell(kpi("Missions terminées", String.valueOf(r.fleetMissionCount())));
         kpis.addCell(kpi("Recettes des missions", fcfa(r.fleetRevenue())));
         kpis.addCell(kpi("Distance parcourue", number(r.fleetKm()) + " km"));
+        kpis.addCell(kpi("Carburant d'essai (garage)", number(r.fleetTestFuelLiters()) + " L"));
+        kpis.addCell(kpi("Temps en panne", r.fleetDowntimeDays() + " j"));
+        kpis.completeRow();
         kpis.setSpacingAfter(14);
         doc.add(kpis);
 
@@ -143,12 +146,15 @@ public class VehicleExpensePdfWriter {
         sub.setSpacingAfter(12);
         doc.add(sub);
 
-        PdfPTable kpis = new PdfPTable(4);
+        PdfPTable kpis = new PdfPTable(3);
         kpis.setWidthPercentage(100);
         kpis.addCell(kpi("Dépenses totales", fcfa(v.totalExpenses())));
         kpis.addCell(kpi("Part de la flotte", percent(v.totalExpenses(), r.fleetTotalExpenses())));
         kpis.addCell(kpi("Distance (missions)", number(v.distanceKm()) + " km"));
         kpis.addCell(kpi("Dépense par km", v.expensePerKm() == null ? "—" : fcfa(v.expensePerKm())));
+        kpis.addCell(kpi("Carburant d'essai (garage)", number(v.testFuelLiters()) + " L"));
+        kpis.addCell(kpi("Temps en panne", v.downtimeDays() + " j"));
+        kpis.completeRow();
         kpis.setSpacingAfter(10);
         doc.add(kpis);
 

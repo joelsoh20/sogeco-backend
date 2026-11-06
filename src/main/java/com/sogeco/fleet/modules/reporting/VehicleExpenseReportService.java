@@ -115,6 +115,29 @@ public class VehicleExpenseReportService {
             add(expenses, (Long) r[0], laverie ? Domain.LAVERIE : Domain.MAINTENANCE, (BigDecimal) r[2]);
         }
 
+        // --- Carburant d'essai consomme au garage (litres, hors cout) ---------------
+        Map<Long, BigDecimal> testFuelByVehicle = new HashMap<>();
+        for (Object[] r : rows("""
+                SELECT m.vehicle.id, COALESCE(SUM(m.testFuelLiters),0)
+                FROM MaintenanceLog m
+                WHERE m.status <> %sMaintenanceStatus.ANNULEE
+                  AND m.interventionDate >= :from AND m.interventionDate <= :to
+                GROUP BY m.vehicle.id""".formatted(ENUMS), "from", from, "to", to)) {
+            testFuelByVehicle.put((Long) r[0], (BigDecimal) r[1]);
+        }
+
+        // --- Temps passe en panne (jours, reparations de la periode) ---------------
+        Map<Long, Long> downtimeByVehicle = new HashMap<>();
+        for (Object[] r : rows("""
+                SELECT m.vehicle.id, COALESCE(SUM(m.downtimeDays),0)
+                FROM MaintenanceLog m
+                WHERE m.isBreakdown = true
+                  AND m.status <> %sMaintenanceStatus.ANNULEE
+                  AND m.interventionDate >= :from AND m.interventionDate <= :to
+                GROUP BY m.vehicle.id""".formatted(ENUMS), "from", from, "to", to)) {
+            downtimeByVehicle.put((Long) r[0], ((Number) r[1]).longValue());
+        }
+
         // --- Visites techniques -----------------------------------------------------------
         for (Object[] r : rows("""
                 SELECT i.vehicle.id, COALESCE(SUM(i.cost),0)
@@ -181,6 +204,8 @@ public class VehicleExpenseReportService {
         BigDecimal fleetRevenue = BigDecimal.ZERO;
         BigDecimal fleetKm = BigDecimal.ZERO;
         BigDecimal fleetTotal = BigDecimal.ZERO;
+        BigDecimal fleetTestFuel = BigDecimal.ZERO;
+        long fleetDowntime = 0;
 
         for (Vehicle v : vehicles) {
             Map<Domain, BigDecimal> byDomain = new EnumMap<>(Domain.class);
@@ -206,6 +231,10 @@ public class VehicleExpenseReportService {
             fleetRevenue = fleetRevenue.add(revenue);
             fleetKm = fleetKm.add(km);
             fleetTotal = fleetTotal.add(total);
+            BigDecimal testFuel = testFuelByVehicle.getOrDefault(v.getId(), BigDecimal.ZERO);
+            fleetTestFuel = fleetTestFuel.add(testFuel);
+            long downtime = downtimeByVehicle.getOrDefault(v.getId(), 0L);
+            fleetDowntime += downtime;
 
             sections.add(new VehicleSection(
                     v.getId(), v.getRegistrationNumber(),
@@ -213,14 +242,15 @@ public class VehicleExpenseReportService {
                     v.getCity() == null ? null : v.getCity().getName(),
                     byDomain, total, types, count, km, revenue,
                     marginByVehicle.getOrDefault(v.getId(), BigDecimal.ZERO),
-                    km.signum() == 0 ? null : total.divide(km, 2, RoundingMode.HALF_UP)));
+                    km.signum() == 0 ? null : total.divide(km, 2, RoundingMode.HALF_UP),
+                    testFuel, downtime));
         }
 
         sections.sort(Comparator.comparing(VehicleSection::totalExpenses).reversed());
 
         return new VehicleExpenseReport(from, to, Instant.now(), SecurityUtils.currentUserEmail(),
                 fleetExpenses, fleetTotal, new ArrayList<>(fleetTypes.values()),
-                fleetMissions, fleetRevenue, fleetKm, sections);
+                fleetMissions, fleetRevenue, fleetKm, fleetTestFuel, fleetDowntime, sections);
     }
 
     private List<Object[]> rows(String jpql, Object... params) {
