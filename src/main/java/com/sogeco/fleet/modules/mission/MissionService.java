@@ -168,12 +168,8 @@ public class MissionService {
         Vehicle vehicle = findVehicle(request.vehicleId());
         Driver driver = findDriver(request.driverId());
 
-        // Une livraison facturable exige un client (RG-5.1)
-        if (Boolean.TRUE.equals(serviceType.getBillable()) && request.clientId() == null) {
-            throw new BusinessException("RG-5.1",
-                    "Un client est obligatoire pour une prestation facturable",
-                    HttpStatus.UNPROCESSABLE_CONTENT);
-        }
+        // RG-5.1 assouplie : le client n'est plus saisi dans le formulaire de mission,
+        // il reste facultatif meme pour une prestation facturable.
 
         // Conformite du camion : assurance, visite technique, carte grise (RG-4.5)
         vehicleService.assertAssignable(request.vehicleId());

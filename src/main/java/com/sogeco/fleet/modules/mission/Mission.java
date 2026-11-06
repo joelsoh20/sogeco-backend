@@ -212,6 +212,11 @@ public class Mission extends BaseEntity {
     public void start() {
         this.status = MissionStatus.EN_COURS;
         this.actualStart = Instant.now();
+        // La date de depart n'est plus saisie a la creation : elle est etablie ici,
+        // ce qui alimente aussi la colonne "Date" et les requetes basees sur plannedStart.
+        if (this.plannedStart == null) {
+            this.plannedStart = this.actualStart;
+        }
     }
 
     public void complete() {
