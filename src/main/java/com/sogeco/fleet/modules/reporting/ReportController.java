@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,8 @@ public class ReportController {
     private final ReportingService reportingService;
     private final ReportExportService exportService;
     private final GeneratedReportRepository reportRepository;
+    private final VehicleExpenseReportService vehicleExpenseReportService;
+    private final VehicleExpensePdfWriter vehicleExpensePdfWriter;
 
     @GetMapping("/vehicles")
     @Operation(summary = "Rentabilite par camion : marge directe et marge nette apres maintenance")
@@ -97,6 +100,30 @@ public class ReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return reportingService.fleetPerformance(from, to);
+    }
+
+    @GetMapping("/vehicle-expenses/report")
+    @Operation(summary = "Statistiques de depenses par domaine et missions par type, pour un camion (vehicleId) ou toute la flotte")
+    public VehicleExpenseReport vehicleExpenseReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long vehicleId) {
+        return vehicleExpenseReportService.build(from, to, vehicleId);
+    }
+
+    @GetMapping("/vehicle-expenses/pdf")
+    @PreAuthorize("hasAuthority('REPORT_EXPORT')")
+    @Operation(summary = "Rapport PDF des depenses par camion et par domaine, avec le bilan des missions par type")
+    public ResponseEntity<byte[]> vehicleExpensesPdf(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long vehicleId) {
+        byte[] pdf = vehicleExpensePdfWriter.write(vehicleExpenseReportService.build(from, to, vehicleId));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"depenses-vehicules_%s_%s.pdf\"".formatted(from, to))
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 
     @PostMapping("/export")

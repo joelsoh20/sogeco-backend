@@ -145,6 +145,14 @@
             <version>5.3.0</version>
         </dependency>
 
+        <!-- Export PDF (rapport des depenses par camion). OpenPDF : fork LGPL/MPL
+             de iText 4, sans licence commerciale. -->
+        <dependency>
+            <groupId>com.github.librepdf</groupId>
+            <artifactId>openpdf</artifactId>
+            <version>3.0.5</version>
+        </dependency>
+
         <!-- ============ Supervision ============ -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
