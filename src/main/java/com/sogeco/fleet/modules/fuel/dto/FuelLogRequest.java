@@ -23,21 +23,15 @@ public record FuelLogRequest(
         @NotNull(message = "la date et l'heure sont obligatoires")
         Instant fuelDatetime,
 
-        @NotNull(message = "la quantite est obligatoire")
-        @Positive(message = "la quantite doit etre positive")
-        BigDecimal quantityLiters,
+        @Schema(description = "Somme depensee pour le plein (FCFA) : on carbure en fonction du budget. "
+                + "Les litres en sont deduits (somme / prix au litre).")
+        @NotNull(message = "la somme consommee est obligatoire")
+        @Positive(message = "la somme consommee doit etre positive")
+        BigDecimal totalCost,
 
         @NotNull(message = "le prix au litre est obligatoire")
-        @PositiveOrZero
+        @Positive(message = "le prix au litre doit etre positif")
         BigDecimal unitPrice,
-
-        @Schema(description = "Si absent, le kilometrage courant du camion est utilise")
-        @PositiveOrZero
-        BigDecimal odometerBefore,
-
-        @NotNull(message = "le kilometrage apres le plein est obligatoire")
-        @PositiveOrZero
-        BigDecimal odometerAfter,
 
         @Schema(description = "Indique si le reservoir a ete rempli a plein ; utilise pour le suivi du niveau de reservoir")
         Boolean fullTank,

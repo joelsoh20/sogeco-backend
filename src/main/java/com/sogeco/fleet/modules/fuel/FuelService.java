@@ -116,28 +116,22 @@ public class FuelService {
     public FuelLogResponse create(FuelLogRequest request) {
         Vehicle vehicle = findVehicle(request.vehicleId());
 
-        BigDecimal before = request.odometerBefore() == null
-                ? vehicle.getCurrentKilometers()
-                : request.odometerBefore();
+        BigDecimal liters = litersFor(request);
+        validate(vehicle, liters, request);
 
-        validate(vehicle, before, request);
-
-        // Le "Km avant" saisi peut differer du kilometrage reel du camion
-        // (champ optionnel, parfois absent ou approximatif) : verifie ici
-        // contre la valeur qui fait autorite, avant que updateKilometers()
-        // ne rejette la baisse plus loin avec une exception non geree.
-        if (vehicle.getCurrentKilometers() != null
-                && request.odometerAfter().compareTo(vehicle.getCurrentKilometers()) < 0) {
-            throw new BusinessException("RG-6.4",
-                    "Le kilometrage apres le plein (%s) est inferieur au kilometrage actuel du camion (%s)"
-                            .formatted(request.odometerAfter(), vehicle.getCurrentKilometers()),
-                    HttpStatus.UNPROCESSABLE_CONTENT);
-        }
-
+        // Plus de saisie du kilometrage : il vient du suivi Traccar, cumule
+        // dans le kilometrage courant du camion. Le "avant" est celui releve
+        // au plein precedent (plafonne au kilometrage courant, qu'une
+        // correction administrative a la baisse pourrait avoir passe sous
+        // lui), le "apres" le kilometrage courant.
         Optional<FuelLog> previous = repository.findPreviousLog(vehicle.getId(), request.fuelDatetime(), null);
+        BigDecimal after = vehicle.getCurrentKilometers();
+        BigDecimal before = previous.map(FuelLog::getOdometerAfter)
+                .map(prev -> prev.min(after))
+                .orElse(after);
         BigDecimal distance = resolveDistanceKm(vehicle,
                 previous.map(FuelLog::getFuelDatetime).orElse(null), request.fuelDatetime(),
-                before, request.odometerAfter());
+                before, after);
 
         FuelLog log = FuelLog.builder()
                 .vehicle(vehicle)
@@ -146,12 +140,11 @@ public class FuelService {
                 .station(request.partnerId() == null ? null : partnerRepository.findById(request.partnerId())
                         .orElseThrow(() -> new ResourceNotFoundException("Station", request.partnerId())))
                 .fuelDatetime(request.fuelDatetime())
-                .quantityLiters(request.quantityLiters())
+                .quantityLiters(liters)
                 .unitPrice(request.unitPrice())
-                .totalCost(request.quantityLiters().multiply(request.unitPrice())
-                        .setScale(2, RoundingMode.HALF_UP))
+                .totalCost(request.totalCost().setScale(2, RoundingMode.HALF_UP))
                 .odometerBefore(before)
-                .odometerAfter(request.odometerAfter())
+                .odometerAfter(after)
                 .fullTank(request.fullTank() == null || request.fullTank())
                 .receiptNumber(request.receiptNumber())
                 .receipt(request.receiptDocumentId() == null ? null
@@ -166,8 +159,6 @@ public class FuelService {
 
         FuelLog saved = repository.save(log);
 
-        // Le kilometrage du camion suit le releve du plein.
-        vehicle.updateKilometers(request.odometerAfter());
         refreshVehicleAverage(vehicle);
 
         // Imputation du cout a la mission rattachee.
@@ -194,21 +185,20 @@ public class FuelService {
         Vehicle vehicle = existing.getVehicle();
         BigDecimal previousCost = existing.getTotalCost();
 
-        validate(vehicle, request.odometerBefore(), request);
+        BigDecimal liters = litersFor(request);
+        validate(vehicle, liters, request);
 
+        // Les releves kilometriques d'origine (Traccar) sont conserves.
         Optional<FuelLog> previous = repository.findPreviousLog(
                 vehicle.getId(), request.fuelDatetime(), existing.getId());
         BigDecimal distance = resolveDistanceKm(vehicle,
                 previous.map(FuelLog::getFuelDatetime).orElse(null), request.fuelDatetime(),
-                request.odometerBefore(), request.odometerAfter());
+                existing.getOdometerBefore(), existing.getOdometerAfter());
 
         existing.setFuelDatetime(request.fuelDatetime());
-        existing.setQuantityLiters(request.quantityLiters());
+        existing.setQuantityLiters(liters);
         existing.setUnitPrice(request.unitPrice());
-        existing.setTotalCost(request.quantityLiters().multiply(request.unitPrice())
-                .setScale(2, RoundingMode.HALF_UP));
-        existing.setOdometerBefore(request.odometerBefore());
-        existing.setOdometerAfter(request.odometerAfter());
+        existing.setTotalCost(request.totalCost().setScale(2, RoundingMode.HALF_UP));
         existing.setFullTank(request.fullTank() == null || request.fullTank());
         existing.setReceiptNumber(request.receiptNumber());
         existing.setDistanceKm(distance);
@@ -290,22 +280,19 @@ public class FuelService {
     // Controles
     // ------------------------------------------------------------------
 
-    private void validate(Vehicle vehicle, BigDecimal before, FuelLogRequest request) {
+    /** Litres deduits du budget : somme depensee / prix au litre. */
+    private static BigDecimal litersFor(FuelLogRequest request) {
+        return request.totalCost().divide(request.unitPrice(), 2, RoundingMode.HALF_UP);
+    }
 
-        // Le kilometrage ne peut que croitre (RG-6.4)
-        if (before != null && request.odometerAfter().compareTo(before) < 0) {
-            throw new BusinessException("RG-6.4",
-                    "Le kilometrage apres le plein (%s) est inferieur au precedent (%s)"
-                            .formatted(request.odometerAfter(), before),
-                    HttpStatus.UNPROCESSABLE_CONTENT);
-        }
+    private void validate(Vehicle vehicle, BigDecimal liters, FuelLogRequest request) {
 
-        // La quantite ne peut exceder la capacite du reservoir (RG-6.5)
+        // La quantite deduite ne peut exceder la capacite du reservoir (RG-6.5)
         BigDecimal capacity = vehicle.getTankCapacityLiters();
-        if (capacity != null && request.quantityLiters().compareTo(capacity) > 0) {
+        if (capacity != null && liters.compareTo(capacity) > 0) {
             throw new BusinessException("RG-6.5",
-                    "La quantite (%s L) depasse la capacite du reservoir (%s L)"
-                            .formatted(request.quantityLiters(), capacity),
+                    "La somme saisie correspond a %s L, au-dela de la capacite du reservoir (%s L)"
+                            .formatted(liters, capacity),
                     HttpStatus.UNPROCESSABLE_CONTENT);
         }
 
