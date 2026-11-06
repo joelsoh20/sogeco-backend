@@ -303,17 +303,9 @@ public class VehicleService {
     /**
      * Motifs empechant l'affectation d'une mission.
      *
-     * C'est le controle le plus rentable de l'application : il evite
-     * qu'un camion parte avec une assurance expiree (RG-4.5).
-     *
-     * Deux sources independantes, toutes deux verifiees ici plutot
-     * que l'une via l'autre : les documents generiques (carte grise,
-     * chronotachygraphe, et assurance/visite avant que le sprint 6
-     * n'existe), et depuis le sprint 6 les polices d'assurance et
-     * visites techniques elles-memes, qui portent une echeance propre
-     * independante de tout document televerse. Comme pour les
-     * documents, seule une police ou une visite PRESENTE ET EXPIREE
-     * bloque — une absence n'a jamais bloque, decision deja actee.
+     * RG-4.5 assouplie : un document expire ou manquant (assurance, visite technique,
+     * carte grise) ne bloque plus l'affectation. Restent bloquants le camion desactive,
+     * son statut (maintenance, mission en cours) et une visite technique non conforme.
      */
     @Transactional(readOnly = true)
     public List<String> blockingReasons(Vehicle vehicle) {
@@ -326,25 +318,14 @@ public class VehicleService {
             reasons.add("Statut : " + vehicle.getStatus());
         }
 
-        for (Document document : documentService.findBlockingExpired(EntityType.VEHICLE, vehicle.getId())) {
-            reasons.add("%s expire depuis %d jours".formatted(
-                    label(document.getDocumentType()), Math.abs(document.daysRemaining())));
-        }
-
-        insurancePolicyRepository.findActiveForVehicle(vehicle.getId())
-                .filter(InsurancePolicy::isExpired)
-                .ifPresent(policy -> reasons.add("Assurance expiree depuis %d jours"
-                        .formatted(Math.abs(policy.daysRemaining()))));
-
+        // Documents expires ou manquants (assurance, visite technique, carte grise...) :
+        // ils n'empechent plus d'envoyer un camion en mission. Ils restent signales par
+        // les alertes d'echeance et l'ecran conformite, sans jamais bloquer l'affectation.
+        // Seule une derniere visite technique NON CONFORME (defaut constate, pas une date
+        // depassee) continue d'immobiliser le camion (RG-8.5).
         technicalInspectionRepository.findLatestForVehicle(vehicle.getId())
-                .ifPresent(inspection -> {
-                    if (inspection.getResult().blocksVehicle()) {
-                        reasons.add("Derniere visite technique non conforme");
-                    } else if (inspection.getNextInspectionDate().isBefore(LocalDate.now())) {
-                        reasons.add("Visite technique expiree depuis %d jours"
-                                .formatted(Math.abs(inspection.daysUntilNext())));
-                    }
-                });
+                .filter(inspection -> inspection.getResult().blocksVehicle())
+                .ifPresent(inspection -> reasons.add("Derniere visite technique non conforme"));
 
         return reasons;
     }
