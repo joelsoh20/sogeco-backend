@@ -24,7 +24,7 @@
 
 ## 2.1 Contradiction sur la nature des clients — **PRIORITÉ 1**
 
-L'écran Missions liste des clients nommés : **Socpalm, Nestlé, Dangote, Tradex, Bolloré, BOCAM, Sotracier, Sociacharm**. Ce sont de grands groupes industriels et agro-industriels camerounais.
+L'écran Missions liste des clients nommés :  Ce sont de grands groupes industriels et agro-industriels camerounais.
 
 Deux lectures possibles, et elles conduisent à deux applications différentes :
 

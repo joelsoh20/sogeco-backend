@@ -60,7 +60,7 @@ public class VehicleExpenseReportService {
 
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('REPORT_READ')")
-    public VehicleExpenseReport build(LocalDate from, LocalDate to, Long vehicleId) {
+    public VehicleExpenseReport build(LocalDate from, LocalDate to, java.util.Collection<Long> vehicleIds) {
         if (to.isBefore(from)) {
             throw new BusinessException("REPORT_PERIOD",
                     "La date de fin precede la date de debut", HttpStatus.UNPROCESSABLE_CONTENT);
@@ -70,9 +70,9 @@ public class VehicleExpenseReportService {
         Long cityId = SecurityUtils.currentCityId().orElse(null);
 
         List<Vehicle> vehicles = vehicleRepository.findActiveForCity(cityId).stream()
-                .filter(v -> vehicleId == null || v.getId().equals(vehicleId))
+                .filter(v -> vehicleIds == null || vehicleIds.isEmpty() || vehicleIds.contains(v.getId()))
                 .toList();
-        if (vehicleId != null && vehicles.isEmpty()) {
+        if (vehicleIds != null && !vehicleIds.isEmpty() && vehicles.isEmpty()) {
             throw new BusinessException("REPORT_VEHICLE",
                     "Camion introuvable dans votre perimetre", HttpStatus.NOT_FOUND);
         }

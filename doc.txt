@@ -112,3 +112,14 @@ h02, meiligao	5013, 5009	Réactivés/corrigés (h02 était par erreur sur le por
 Deux pistes distinctes possibles, il faut d'abord savoir laquelle c'est. Le plus rapide pour trancher : va sur le terminal SSH et regarde l'activité récente de ce boîtier précisément :
 
 grep 68053059965558 /opt/traccar/logs/tracker-server.log | tail -40
+
+je voudrais que sur cette interface, tu affiches les littres consomés ce mois et ceux consomer le mois passé
+
+Maintenant : la moyenne se calcule par somme — total des litres achetés sur l'historique récent ÷ total des km parcourus sur cette même période. Cette formule reste juste même si aucun plein n'est complet, car elle ne suppose jamais que le réservoir est plein à un instant précis — seulement qu'à force d'achats et de kilomètres cumulés, le carburant acheté finit par correspondre au carburant consommé.
+
+J'ai testé avec un cas proche de votre situation réelle (deux pleins partiels : 10L/100km puis 100L/500km) :
+
+Ancienne méthode : (10+20)/2 = 15 L/100km (faussée par le petit plein)
+Nouvelle méthode : 110L/600km = 18,33 L/100km (correcte)
+distanceDepuisAncrage = kilométrageActuel - kilométrageAuPremierPlein;
+carburantEstimé = litresAuPremierPlein + toutCeQuiAÉtéAjoutéDepuis - (distanceDepuisAncrage × consommationMoyenne);

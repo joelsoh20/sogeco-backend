@@ -103,12 +103,12 @@ public class ReportController {
     }
 
     @GetMapping("/vehicle-expenses/report")
-    @Operation(summary = "Statistiques de depenses par domaine et missions par type, pour un camion (vehicleId) ou toute la flotte")
+    @Operation(summary = "Statistiques de depenses par domaine et missions par type, pour les camions choisis (vehicleIds, separes par des virgules) ou toute la flotte")
     public VehicleExpenseReport vehicleExpenseReport(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) Long vehicleId) {
-        return vehicleExpenseReportService.build(from, to, vehicleId);
+            @RequestParam(required = false) List<Long> vehicleIds) {
+        return vehicleExpenseReportService.build(from, to, vehicleIds);
     }
 
     @GetMapping("/vehicle-expenses/pdf")
@@ -117,8 +117,8 @@ public class ReportController {
     public ResponseEntity<byte[]> vehicleExpensesPdf(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) Long vehicleId) {
-        byte[] pdf = vehicleExpensePdfWriter.write(vehicleExpenseReportService.build(from, to, vehicleId));
+            @RequestParam(required = false) List<Long> vehicleIds) {
+        byte[] pdf = vehicleExpensePdfWriter.write(vehicleExpenseReportService.build(from, to, vehicleIds));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"depenses-vehicules_%s_%s.pdf\"".formatted(from, to))
