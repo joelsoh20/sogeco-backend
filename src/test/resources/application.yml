@@ -118,6 +118,15 @@ sogeco:
   cors:
     allowed-origins: http://localhost:5173
 
+  ors:
+    # Sans cle : OpenRouteServiceClient et GeocodingClient restent desactives,
+    # aucun appel reseau pendant les tests. Les URL doivent exister pour que
+    # les beans se construisent.
+    api-key:
+    base-url: https://api.heigit.org/openrouteservice
+    profile: driving-hgv
+    geocode-base-url: https://api.openrouteservice.org
+
   ratelimit:
     # Desactive en pratique : les conteneurs Redis de test sont partages entre
     # toutes les classes heritant d'AbstractIntegrationTest, qui peuvent y
