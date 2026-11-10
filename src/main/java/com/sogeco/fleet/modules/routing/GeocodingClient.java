@@ -88,6 +88,91 @@ public class GeocodingClient {
         }
     }
 
+    /** Une proposition de la recherche par texte : lieu, ville, coordonnees. */
+    public record PlaceSuggestion(String label, String placeName, String cityName,
+                                  BigDecimal latitude, BigDecimal longitude) {
+    }
+
+    // Politique d'usage Nominatim : 1 requete/seconde au plus, donc intervalle minimal entre
+    // deux appels et petit cache (la saisie progressive repete souvent la meme recherche).
+    private static final long NOMINATIM_MIN_INTERVAL_MS = 1100;
+    private static final long SEARCH_CACHE_TTL_MS = 10 * 60 * 1000;
+    private final Object nominatimLock = new Object();
+    private long lastNominatimCall = 0;
+    private final java.util.Map<String, CachedSearch> searchCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private record CachedSearch(long at, List<PlaceSuggestion> results) {
+    }
+
+    /**
+     * Recherche de lieux par texte libre (autocompletion facon Google Maps), via Nominatim,
+     * restreinte au Cameroun. Nominatim tolere les variantes d'orthographe courantes.
+     * La ville est resolue comme pour le geocodage inverse (arrondissement ramene a la ville).
+     * Echec reseau ou aucun resultat : liste vide, jamais d'exception.
+     */
+    public List<PlaceSuggestion> search(String query) {
+        String q = query == null ? "" : query.trim();
+        if (q.length() < 3) {
+            return List.of();
+        }
+        String key = q.toLowerCase(java.util.Locale.ROOT);
+        CachedSearch cached = searchCache.get(key);
+        if (cached != null && System.currentTimeMillis() - cached.at() < SEARCH_CACHE_TTL_MS) {
+            return cached.results();
+        }
+        try {
+            List<NominatimSearchResult> raw;
+            synchronized (nominatimLock) {
+                long wait = NOMINATIM_MIN_INTERVAL_MS - (System.currentTimeMillis() - lastNominatimCall);
+                if (wait > 0) {
+                    Thread.sleep(wait);
+                }
+                lastNominatimCall = System.currentTimeMillis();
+                raw = nominatimClient.get()
+                        .uri(uriBuilder -> uriBuilder
+                                .path("/search")
+                                .queryParam("q", q)
+                                .queryParam("format", "jsonv2")
+                                .queryParam("countrycodes", "cm")
+                                .queryParam("addressdetails", 1)
+                                .queryParam("limit", 8)
+                                .queryParam("accept-language", "fr")
+                                .build())
+                        .retrieve()
+                        .body(new org.springframework.core.ParameterizedTypeReference<List<NominatimSearchResult>>() { });
+            }
+            List<PlaceSuggestion> results = new java.util.ArrayList<>();
+            for (NominatimSearchResult r : raw == null ? List.<NominatimSearchResult>of() : raw) {
+                // Les limites administratives (communautes urbaines, departements) ne sont pas des lieux de livraison.
+                if (r.lat() == null || r.lon() == null || "boundary".equals(r.category())) {
+                    continue;
+                }
+                String city = resolveCityFromNominatim(r.address());
+                if (city == null && r.address() != null) {
+                    city = stripArrondissement(firstNonBlank(r.address().county(), r.address().stateDistrict()));
+                }
+                if (city == null) {
+                    continue;
+                }
+                String place = firstNonBlank(r.name(), resolvePlaceFromNominatim(r.address()), city);
+                if (isArrondissementName(place)) {
+                    place = city;
+                }
+                results.add(new PlaceSuggestion(
+                        place.equalsIgnoreCase(city) ? city : place + ", " + city,
+                        place, city, r.lat(), r.lon()));
+            }
+            searchCache.put(key, new CachedSearch(System.currentTimeMillis(), results));
+            return results;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return List.of();
+        } catch (Exception e) {
+            log.warn("Recherche de lieux Nominatim en echec pour « {} » : {}", q, e.getMessage());
+            return List.of();
+        }
+    }
+
     /** name : le lieu le plus proche du point (quartier/venue/rue...) ; locality : sa ville. */
     public record ReversePlace(String name, String locality, BigDecimal latitude, BigDecimal longitude) {
     }
@@ -330,6 +415,9 @@ public class GeocodingClient {
         return matcher.matches() ? matcher.group(1) : null;
     }
 
+    private record NominatimSearchResult(String name, String category, BigDecimal lat, BigDecimal lon, NominatimAddress address) {
+    }
+
     private record NominatimResponse(NominatimAddress address) {
     }
 
@@ -341,7 +429,9 @@ public class GeocodingClient {
             @JsonProperty("city_district") String cityDistrict,
             String city,
             String town,
-            String municipality) {
+            String municipality,
+            String county,
+            @JsonProperty("state_district") String stateDistrict) {
     }
 
     private static boolean isNotablePlace(ReverseFeature feature) {

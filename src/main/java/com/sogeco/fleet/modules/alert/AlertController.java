@@ -27,6 +27,7 @@ public class AlertController {
 
     private final AlertQueryService queryService;
     private final AlertService alertService;
+    private final AlertReadService readService;
 
     @GetMapping("/alerts")
     @Operation(summary = "Lister les alertes")
@@ -35,6 +36,26 @@ public class AlertController {
             @PageableDefault(size = 20, sort = "triggeredAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
         return level == null ? queryService.list(pageable) : queryService.listByLevel(level, pageable);
+    }
+
+    @GetMapping("/alerts/unread-count")
+    @Operation(summary = "Alertes ouvertes non consultees par l'utilisateur (compteur de la cloche)")
+    public java.util.Map<String, Long> unreadCount() {
+        return java.util.Map.of("count", readService.unreadCount());
+    }
+
+    @PostMapping("/alerts/{id}/read")
+    @Operation(summary = "Marquer une alerte comme consultee")
+    public org.springframework.http.ResponseEntity<Void> markRead(@PathVariable Long id) {
+        readService.markRead(id);
+        return org.springframework.http.ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/alerts/read-all")
+    @Operation(summary = "Marquer toutes les alertes ouvertes comme consultees")
+    public org.springframework.http.ResponseEntity<Void> markAllRead() {
+        readService.markAllRead();
+        return org.springframework.http.ResponseEntity.noContent().build();
     }
 
     @GetMapping("/alerts/recent")

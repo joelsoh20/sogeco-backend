@@ -33,6 +33,8 @@ public class ReportController {
     private final GeneratedReportRepository reportRepository;
     private final VehicleExpenseReportService vehicleExpenseReportService;
     private final VehicleExpensePdfWriter vehicleExpensePdfWriter;
+    private final MissionReportService missionReportService;
+    private final MissionReportPdfWriter missionReportPdfWriter;
 
     @GetMapping("/vehicles")
     @Operation(summary = "Rentabilite par camion : marge directe et marge nette apres maintenance")
@@ -122,6 +124,21 @@ public class ReportController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"depenses-vehicules_%s_%s.pdf\"".formatted(from, to))
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
+    }
+
+    @GetMapping("/missions/pdf")
+    @PreAuthorize("hasAuthority('REPORT_EXPORT')")
+    @Operation(summary = "Rapport PDF des missions effectuees par les camions choisis (vehicleIds) ou toute la flotte, sur une periode")
+    public ResponseEntity<byte[]> missionsPdf(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) List<Long> vehicleIds) {
+        byte[] pdf = missionReportPdfWriter.write(missionReportService.build(from, to, vehicleIds));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"missions_%s_%s.pdf\"".formatted(from, to))
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
     }

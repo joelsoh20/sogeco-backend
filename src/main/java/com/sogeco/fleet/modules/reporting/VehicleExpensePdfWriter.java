@@ -41,6 +41,12 @@ import java.util.List;
 @Component
 public class VehicleExpensePdfWriter {
 
+    private final PdfBranding branding;
+
+    public VehicleExpensePdfWriter(PdfBranding branding) {
+        this.branding = branding;
+    }
+
     private static final Color PRIMARY = new Color(0x1E, 0x3A, 0x5F);
     private static final Color HEADER_BG = new Color(0xE8, 0xEE, 0xF5);
     private static final Color ZEBRA = new Color(0xF7, 0xF9, 0xFB);
@@ -60,10 +66,10 @@ public class VehicleExpensePdfWriter {
 
     public byte[] write(VehicleExpenseReport report) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        Document document = new Document(PageSize.A4, 40, 40, 45, 50);
+        Document document = new Document(PageSize.A4, 40, 40, 30 + PdfBranding.HEADER_HEIGHT, 50);
         try {
             PdfWriter writer = PdfWriter.getInstance(document, out);
-            writer.setPageEvent(new Footer(report));
+            writer.setPageEvent(new Footer(report, branding));
             document.addTitle("Rapport des depenses par vehicule");
             document.addAuthor("SOGECO Fleet Manager");
             document.open();
@@ -266,13 +272,16 @@ public class VehicleExpensePdfWriter {
     /** Pied de page : confidentialite, date de generation et numero de page. */
     private static class Footer extends PdfPageEventHelper {
         private final VehicleExpenseReport report;
+        private final PdfBranding branding;
 
-        Footer(VehicleExpenseReport report) {
+        Footer(VehicleExpenseReport report, PdfBranding branding) {
             this.report = report;
+            this.branding = branding;
         }
 
         @Override
         public void onEndPage(PdfWriter writer, Document document) {
+            branding.drawHeader(writer, document);
             PdfContentByte cb = writer.getDirectContent();
             Rectangle page = document.getPageSize();
             String left = "SOGECO Fleet Manager  ·  généré le %s par %s"
