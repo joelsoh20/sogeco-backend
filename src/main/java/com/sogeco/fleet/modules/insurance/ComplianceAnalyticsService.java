@@ -72,9 +72,24 @@ public class ComplianceAnalyticsService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public List<DeadlineItem> unifiedSchedule(int daysAhead) {
+        return buildSchedule(daysAhead, SecurityUtils.currentCityId().orElse(null));
+    }
+
+    /** Documents dont la date est depassee, toutes villes : pour les alertes quotidiennes (sans utilisateur connecte). */
+    @Transactional(readOnly = true)
+    public List<DeadlineItem> expiredDocumentsForAlerts() {
+        return buildSchedule(0, null).stream().filter(item -> item.status() == DocumentStatus.EXPIRE).toList();
+    }
+
+    /** Documents jamais enregistres, toutes villes : pour les alertes quotidiennes. */
+    @Transactional(readOnly = true)
+    public List<MissingDocumentItem> missingDocumentsForAlerts() {
+        return buildMissing(null);
+    }
+
+    private List<DeadlineItem> buildSchedule(int daysAhead, Long cityId) {
         int warningDays = settingService.getInt("alert.expiry_warning_days", 30);
         LocalDate limit = LocalDate.now().plusDays(daysAhead);
-        Long cityId = SecurityUtils.currentCityId().orElse(null);
         List<DeadlineItem> items = new ArrayList<>();
 
         policyRepository.findByStatusAndEndDateLessThanEqual(PolicyStatus.ACTIVE, limit).stream()
@@ -172,8 +187,11 @@ public class ComplianceAnalyticsService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('INSURANCE_READ')")
     public List<MissingDocumentItem> missingDocuments() {
+        return buildMissing(SecurityUtils.currentCityId().orElse(null));
+    }
+
+    private List<MissingDocumentItem> buildMissing(Long cityId) {
         List<MissingDocumentItem> items = new ArrayList<>();
-        Long cityId = SecurityUtils.currentCityId().orElse(null);
 
         for (Vehicle vehicle : vehicleRepository.findByActiveTrueOrderByRegistrationNumberAsc()) {
             if (!inScope(vehicle, cityId)) {

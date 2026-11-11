@@ -118,7 +118,7 @@ public class MaintenanceService {
                 .garage(request.partnerId() == null ? null : partnerRepository.findById(request.partnerId())
                         .orElseThrow(() -> new ResourceNotFoundException("Garage", request.partnerId())))
                 .category(request.category())
-                .description(request.description())
+                .description(describe(request))
                 .interventionDate(request.interventionDate())
                 .completionDate(request.completionDate())
                 .odometerKm(request.odometerKm() == null ? vehicle.getCurrentKilometers() : request.odometerKm())
@@ -175,7 +175,7 @@ public class MaintenanceService {
         }
 
         maintenance.setCategory(request.category());
-        maintenance.setDescription(request.description());
+        maintenance.setDescription(describe(request));
         maintenance.setInterventionDate(request.interventionDate());
         if (request.odometerKm() != null) {
             maintenance.setOdometerKm(request.odometerKm());
@@ -316,6 +316,22 @@ public class MaintenanceService {
                             + "soit plus de {}% de sa valeur d'acquisition",
                     vehicle.getRegistrationNumber(), yearCost, ratio);
         }
+    }
+
+    /** Description facultative a la saisie : a defaut, le libelle de la categorie (la colonne est obligatoire). */
+    private static String describe(MaintenanceRequest request) {
+        String text = request.description();
+        if (text != null && !text.isBlank()) {
+            return text.trim();
+        }
+        return switch (request.category()) {
+            case ENTRETIEN_PREVENTIF -> "Entretien préventif";
+            case REPARATION_MECANIQUE -> "Réparation mécanique";
+            case PNEUMATIQUE -> "Pneumatiques";
+            case ELECTRICITE -> "Électricité";
+            case LAVERIE -> "Laverie";
+            case AUTRES -> "Autres";
+        };
     }
 
     private Vehicle findVehicle(Long id) {

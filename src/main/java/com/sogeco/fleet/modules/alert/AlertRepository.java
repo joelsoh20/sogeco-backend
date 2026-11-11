@@ -52,6 +52,16 @@ public interface AlertRepository extends JpaRepository<Alert, Long>, JpaSpecific
            """)
     Optional<Alert> findOpen(@Param("type") AlertType type, @Param("vehicleId") Long vehicleId);
 
+    /** Alertes ouvertes d'un type, tous camions confondus : sert a clore celles dont la cause a disparu. */
+    @EntityGraph(attributePaths = "vehicle")
+    @Query("""
+           SELECT a FROM Alert a
+           WHERE a.alertType = :type
+             AND a.status IN (com.sogeco.fleet.common.enums.AlertStatus.NON_RESOLUE,
+                              com.sogeco.fleet.common.enums.AlertStatus.EN_COURS)
+           """)
+    List<Alert> findAllOpen(@Param("type") AlertType type);
+
     /**
      * Derniere alerte cloturee (resolue ou ignoree) de meme nature sur
      * le meme camion, si la cloture date de moins de :since — delai

@@ -55,7 +55,9 @@ public class AlertService {
             BigDecimal latitude,
             BigDecimal longitude,
             String locationLabel,
-            AlertRule rule
+            AlertRule rule,
+            /** Vrai : une alerte deja ouverte voit son titre et sa description mis a jour (ex. liste de documents). */
+            boolean refreshDescription
     ) {
     }
 
@@ -85,6 +87,10 @@ public class AlertService {
             if (open.isPresent()) {
                 Alert alert = open.get();
                 alert.registerOccurrence();
+                if (request.refreshDescription()) {
+                    alert.setTitle(request.title());
+                    alert.setDescription(request.description());
+                }
                 log.debug("Alerte {} sur {} absorbee, {} occurrences",
                         request.type(), vehicleId, alert.getOccurrences());
                 return Optional.empty();
@@ -133,6 +139,13 @@ public class AlertService {
      * declenche une LazyInitializationException des qu'il accede a
      * vehicle/driver.
      */
+    /** Cloture automatique (cause disparue) : l'ecran Alertes deja ouvert est prevenu par l'evenement. */
+    @Transactional
+    public void autoResolve(Alert alert, String note) {
+        alert.resolve(null, note);
+        events.publishEvent(new AlertTriggeredEvent(alert.getId()));
+    }
+
     @Transactional
     public AlertResponse acknowledge(Long id) {
         Alert alert = find(id);

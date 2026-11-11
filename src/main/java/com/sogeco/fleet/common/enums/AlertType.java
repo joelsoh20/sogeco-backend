@@ -27,6 +27,10 @@ public enum AlertType {
     ASSURANCE_ECHEANCE,
     VISITE_TECHNIQUE_ECHEANCE,
     PERMIS_ECHEANCE,
+    /** Documents d'un camion (assurance, visite technique, cartes) ou licence de transport : date depassee. */
+    DOCUMENT_EXPIRE,
+    /** Documents jamais enregistres pour un camion actif. */
+    DOCUMENT_MANQUANT,
 
     // Divers
     PEAGE_IMPAYE,

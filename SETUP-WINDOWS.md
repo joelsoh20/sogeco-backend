@@ -111,5 +111,5 @@ Le ping doit renvoyer :
 |---|---|---|
 | `Cannot connect to the Docker daemon` | Docker Desktop non demarre | Lancer Docker Desktop |
 | `Connection refused: localhost:5432` | Conteneurs non demarres | `docker compose up -d` |
-| `invalid target release: 26` | JDK inferieur a 26 | Installer le JDK 26, puis File > Project Structure > SDK |
+| `invalid target release: 25` | JDK inférieur à 25 | Installer le JDK 25, puis régler File > Project Structure > SDK sur Java 25 |
 | `port is already allocated` | Port 5432 ou 6379 occupe | Changer le mapping dans docker-compose.yml |

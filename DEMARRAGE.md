@@ -182,7 +182,7 @@ Le `.gitignore` exclut `.env`, `target/` et `.idea/`. **Ne jamais versionner le 
 
 | Message | Cause | Solution |
 |---|---|---|
-| `invalid target release: 21` | JDK < 21 | File → Project Structure → SDK → 21 |
+| `invalid target release: 25` | JDK < 25 | Installer JDK 25, puis régler File → Project Structure → SDK → 25 |
 | `Cannot connect to the Docker daemon` | Docker Desktop arrêté | Le lancer et attendre l'icône verte |
 | `port is already allocated` | 5432 ou 6379 occupé | Mapper sur `5433:5432`, ajouter `DB_PORT=5433` au `.env` |
 | `Connection refused: localhost:5432` | Conteneurs non démarrés | `docker compose up -d` |

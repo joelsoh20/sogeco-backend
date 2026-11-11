@@ -181,13 +181,6 @@ public class VehicleExpensePdfWriter {
         } else {
             doc.add(missionTypeTable(v.missionTypes(), v.missionCount(), v.distanceKm(), v.revenue()));
         }
-
-        doc.add(heading("Bilan"));
-        PdfPTable bilan = table(new float[]{5, 5});
-        line(bilan, 0, "Recettes des missions", fcfa(v.revenue()));
-        line(bilan, 1, "Marge des missions (après coûts directs et quote-part chauffeur)", fcfa(v.missionMargin()));
-        line(bilan, 2, "Dépenses totales du véhicule (tous domaines)", fcfa(v.totalExpenses()));
-        doc.add(bilan);
     }
 
     private PdfPTable missionTypeTable(List<MissionTypeLine> lines, long totalCount, BigDecimal totalKm,

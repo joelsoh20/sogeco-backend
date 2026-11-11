@@ -35,6 +35,8 @@ public class ReportController {
     private final VehicleExpensePdfWriter vehicleExpensePdfWriter;
     private final MissionReportService missionReportService;
     private final MissionReportPdfWriter missionReportPdfWriter;
+    private final OilReportService oilReportService;
+    private final OilXlsxWriter oilXlsxWriter;
 
     @GetMapping("/vehicles")
     @Operation(summary = "Rentabilite par camion : marge directe et marge nette apres maintenance")
@@ -141,6 +143,21 @@ public class ReportController {
                         "attachment; filename=\"missions_%s_%s.pdf\"".formatted(from, to))
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
+    }
+
+    @GetMapping("/oil/xlsx")
+    @PreAuthorize("hasAuthority('REPORT_EXPORT')")
+    @Operation(summary = "Fichier Excel du suivi du fut d'huile par ville (cityId : une ville ; sinon toutes) : approvisionnements, huile donnee a chaque camion, quantite restante")
+    public ResponseEntity<byte[]> oilXlsx(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long cityId) {
+        byte[] file = oilXlsxWriter.write(oilReportService.build(from, to, cityId));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"suivi-huile_%s_%s.xlsx\"".formatted(from, to))
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(file);
     }
 
     @PostMapping("/export")

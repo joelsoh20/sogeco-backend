@@ -106,11 +106,50 @@ public class OpenRouteServiceClient {
         }
     }
 
+    /**
+     * Itineraire routier passant par une suite de points [latitude, longitude] (2 a 50), pour redessiner un
+     * trajet GPS sur les routes. Chaque point est accroche a la route la plus proche dans un rayon de 250 m.
+     * Retourne la geometrie [latitude, longitude] ; vide si ORS est desactive, hors quota, ou si un point ne
+     * peut pas etre accroche (l'appelant garde alors la ligne droite).
+     */
+    public Optional<List<double[]>> routeThrough(List<double[]> latLngPoints) {
+        if (!enabled || latLngPoints.size() < 2 || latLngPoints.size() > 50) {
+            return Optional.empty();
+        }
+        try {
+            List<List<Double>> coordinates = latLngPoints.stream()
+                    .map(p -> List.of(p[1], p[0]))
+                    .toList();
+            List<Integer> radiuses = latLngPoints.stream().map(p -> 250).toList();
+
+            GeoJsonResponse response = restClient.post()
+                    .uri("/v2/directions/{profile}/geojson", profile)
+                    .header("Authorization", apiKey)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new SnapRequest(coordinates, radiuses))
+                    .retrieve()
+                    .body(GeoJsonResponse.class);
+
+            if (response == null || response.features() == null || response.features().isEmpty()) {
+                return Optional.empty();
+            }
+            return Optional.of(response.features().get(0).geometry().coordinates().stream()
+                    .map(point -> new double[]{point.get(1), point.get(0)})
+                    .toList());
+        } catch (Exception e) {
+            log.warn("OpenRouteService : trajet non accroche aux routes ({} points) : {}", latLngPoints.size(), e.getMessage());
+            return Optional.empty();
+        }
+    }
+
     // ------------------------------------------------------------------
     // Format d'echange ORS (sous-ensemble minimal : distance/duree/trace)
     // ------------------------------------------------------------------
 
     private record DirectionsRequest(List<List<BigDecimal>> coordinates) {
+    }
+
+    private record SnapRequest(List<List<Double>> coordinates, List<Integer> radiuses) {
     }
 
     private record GeoJsonResponse(List<Feature> features) {

@@ -27,12 +27,20 @@ import java.util.List;
 public class TrackingController {
 
     private final TrackingService service;
+    private final TrackSnapService snapService;
     private final WebhookEventRepository webhookRepository;
 
     @GetMapping("/positions/current")
     @Operation(summary = "Dernieres positions de tout le parc, servies depuis le cache")
     public List<LivePosition> current() {
         return service.currentPositions();
+    }
+
+    @GetMapping("/motion")
+    @Operation(summary = "Etat de deplacement de chaque camion (en mouvement, stationne, gare) et depuis quelle heure")
+    @PreAuthorize("hasAuthority('TRACKING_READ')")
+    public List<com.sogeco.fleet.modules.tracking.dto.MotionState> motion() {
+        return service.motionStates();
     }
 
     @GetMapping("/stats")
@@ -59,6 +67,17 @@ public class TrackingController {
         Instant end = to == null ? Instant.now() : to;
         Instant start = from == null ? end.minus(24, ChronoUnit.HOURS) : from;
         return service.history(id, start, end);
+    }
+
+    @GetMapping("/vehicles/{id}/history/snapped")
+    @Operation(summary = "Trajet d'un camion redessine sur les routes (OpenRouteService), a la place des lignes droites")
+    public com.sogeco.fleet.modules.tracking.dto.SnappedTrack snappedHistory(
+            @PathVariable Long id,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        Instant end = to == null ? Instant.now() : to;
+        Instant start = from == null ? end.minus(24, ChronoUnit.HOURS) : from;
+        return snapService.snap(id, start, end);
     }
 
     @GetMapping("/vehicles/{id}/diagnostics")

@@ -21,7 +21,6 @@ public record MaintenanceRequest(
         @NotNull(message = "la categorie est obligatoire")
         MaintenanceCategory category,
 
-        @NotBlank(message = "la description est obligatoire")
         @Size(max = 500)
         @Schema(example = "Vidange + filtres")
         String description,

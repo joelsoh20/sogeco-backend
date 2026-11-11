@@ -70,6 +70,34 @@ public interface GpsPositionRepository extends JpaRepository<GpsPosition, Long> 
                            @Param("from") Instant from,
                            @Param("to") Instant to);
 
+    /**
+     * Debut de la serie en cours de releves A L'ARRET (vitesse sous le seuil), par camion : le premier
+     * releve apres le dernier releve en mouvement de la fenetre. Colonnes : camion, debut, et vrai si
+     * aucun releve en mouvement n'existe dans la fenetre (la serie dure depuis au moins ce debut).
+     */
+    @Query(value = """
+           SELECT p.vehicle_id, MIN(p.recorded_at), MAX(m.t) IS NULL
+           FROM gps_positions p
+           LEFT JOIN (SELECT vehicle_id, MAX(recorded_at) AS t FROM gps_positions
+                      WHERE recorded_at > :since AND valid AND speed_kmh > :threshold
+                      GROUP BY vehicle_id) m ON m.vehicle_id = p.vehicle_id
+           WHERE p.recorded_at > :since AND p.valid AND (m.t IS NULL OR p.recorded_at > m.t)
+           GROUP BY p.vehicle_id
+           """, nativeQuery = true)
+    List<Object[]> stoppedStreakStarts(@Param("since") Instant since, @Param("threshold") BigDecimal threshold);
+
+    /** Symetrique : debut de la serie en cours de releves EN MOUVEMENT, apres le dernier releve a l'arret. */
+    @Query(value = """
+           SELECT p.vehicle_id, MIN(p.recorded_at), MAX(s.t) IS NULL
+           FROM gps_positions p
+           LEFT JOIN (SELECT vehicle_id, MAX(recorded_at) AS t FROM gps_positions
+                      WHERE recorded_at > :since AND valid AND (speed_kmh IS NULL OR speed_kmh <= :threshold)
+                      GROUP BY vehicle_id) s ON s.vehicle_id = p.vehicle_id
+           WHERE p.recorded_at > :since AND p.valid AND (s.t IS NULL OR p.recorded_at > s.t)
+           GROUP BY p.vehicle_id
+           """, nativeQuery = true)
+    List<Object[]> movingStreakStarts(@Param("since") Instant since, @Param("threshold") BigDecimal threshold);
+
     Page<GpsPosition> findByVehicleIdOrderByRecordedAtDesc(Long vehicleId, Pageable pageable);
 
     List<GpsPosition> findByMissionIdOrderByRecordedAtAsc(Long missionId);

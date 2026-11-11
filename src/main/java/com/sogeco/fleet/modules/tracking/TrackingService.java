@@ -11,6 +11,7 @@ import com.sogeco.fleet.modules.mission.Mission;
 import com.sogeco.fleet.modules.mission.MissionRepository;
 import com.sogeco.fleet.modules.setting.SettingService;
 import com.sogeco.fleet.modules.tracking.dto.LivePosition;
+import com.sogeco.fleet.modules.tracking.dto.MotionState;
 import com.sogeco.fleet.modules.tracking.dto.TrackHistoryResponse;
 import com.sogeco.fleet.modules.tracking.dto.TrackingStatsResponse;
 import com.sogeco.fleet.modules.vehicle.Vehicle;
@@ -316,6 +317,53 @@ public class TrackingService {
         }
 
         return new TrackingStatsResponse(moving, idle, offline, maintenance, vehicles.size());
+    }
+
+    /**
+     * Etat de deplacement de chaque camion (en mouvement, stationne, gare, hors ligne) et depuis
+     * quelle heure, calcule sur l'historique des 7 derniers jours. Meme seuil d'arret et meme delai
+     * hors ligne que les statistiques de la carte.
+     */
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('TRACKING_READ')")
+    public List<MotionState> motionStates() {
+        int offlineMinutes = settingService.getInt("gps.offline_threshold_minutes", 30);
+        BigDecimal idleThreshold = BigDecimal.valueOf(settingService.getInt("telematics.idle_speed_kmh", 3));
+        Instant since = Instant.now().minus(7, java.time.temporal.ChronoUnit.DAYS);
+
+        Map<Long, Object[]> stopped = streaks(positionRepository.stoppedStreakStarts(since, idleThreshold));
+        Map<Long, Object[]> moving = streaks(positionRepository.movingStreakStarts(since, idleThreshold));
+
+        return currentPositions().stream().map(position -> {
+            if (!position.gpsTracked() || position.recordedAt() == null) {
+                return new MotionState(position.vehicleId(), position.registrationNumber(),
+                        MotionState.Motion.INCONNU, null, false, null);
+            }
+            if (position.isOffline(offlineMinutes)) {
+                return new MotionState(position.vehicleId(), position.registrationNumber(),
+                        MotionState.Motion.HORS_LIGNE, position.recordedAt(), false, position.recordedAt());
+            }
+            boolean isMoving = position.isMovingAbove(idleThreshold);
+            MotionState.Motion state = isMoving ? MotionState.Motion.EN_MOUVEMENT
+                    : Boolean.FALSE.equals(position.ignitionOn()) ? MotionState.Motion.GARE
+                    : MotionState.Motion.STATIONNE;
+            Object[] streak = (isMoving ? moving : stopped).get(position.vehicleId());
+            Instant start = streak == null ? position.recordedAt() : (Instant) streak[0];
+            boolean openEnded = streak != null && Boolean.TRUE.equals(streak[1]);
+            return new MotionState(position.vehicleId(), position.registrationNumber(), state,
+                    start, openEnded, position.recordedAt());
+        }).toList();
+    }
+
+    private static Map<Long, Object[]> streaks(List<Object[]> rows) {
+        Map<Long, Object[]> map = new HashMap<>();
+        for (Object[] row : rows) {
+            Object ts = row[1];
+            Instant start = ts instanceof java.sql.Timestamp t ? t.toInstant()
+                    : ts instanceof java.time.OffsetDateTime o ? o.toInstant() : (Instant) ts;
+            map.put(((Number) row[0]).longValue(), new Object[]{start, row[2]});
+        }
+        return map;
     }
 
     // ------------------------------------------------------------------
