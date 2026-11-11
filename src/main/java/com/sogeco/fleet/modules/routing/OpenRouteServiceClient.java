@@ -48,6 +48,10 @@ public class OpenRouteServiceClient {
         return enabled;
     }
 
+    /** Itineraire passant par des points : geometrie [latitude, longitude] et indice de chaque point d'entree dans celle-ci. */
+    public record ThroughRoute(List<double[]> geometry, List<Integer> wayPoints) {
+    }
+
     /** geometry : suite de points [latitude, longitude] du trace routier reel, pour affichage carte. */
     public record RoadRoute(BigDecimal distanceKm, Integer durationMinutes, List<double[]> geometry) {
     }
@@ -112,7 +116,7 @@ public class OpenRouteServiceClient {
      * Retourne la geometrie [latitude, longitude] ; vide si ORS est desactive, hors quota, ou si un point ne
      * peut pas etre accroche (l'appelant garde alors la ligne droite).
      */
-    public Optional<List<double[]>> routeThrough(List<double[]> latLngPoints) {
+    public Optional<ThroughRoute> routeThrough(List<double[]> latLngPoints) {
         if (!enabled || latLngPoints.size() < 2 || latLngPoints.size() > 50) {
             return Optional.empty();
         }
@@ -133,9 +137,14 @@ public class OpenRouteServiceClient {
             if (response == null || response.features() == null || response.features().isEmpty()) {
                 return Optional.empty();
             }
-            return Optional.of(response.features().get(0).geometry().coordinates().stream()
+            Feature feature = response.features().get(0);
+            List<double[]> geometry = feature.geometry().coordinates().stream()
                     .map(point -> new double[]{point.get(1), point.get(0)})
-                    .toList());
+                    .toList();
+            // way_points : position de chaque point GPS d'entree dans la geometrie (sert a dater le trace)
+            List<Integer> wayPoints = feature.properties() == null || feature.properties().wayPoints() == null
+                    ? List.of() : feature.properties().wayPoints();
+            return Optional.of(new ThroughRoute(geometry, wayPoints));
         } catch (Exception e) {
             log.warn("OpenRouteService : trajet non accroche aux routes ({} points) : {}", latLngPoints.size(), e.getMessage());
             return Optional.empty();
@@ -158,7 +167,8 @@ public class OpenRouteServiceClient {
     private record Feature(Properties properties, Geometry geometry) {
     }
 
-    private record Properties(Summary summary) {
+    private record Properties(Summary summary,
+                              @com.fasterxml.jackson.annotation.JsonProperty("way_points") List<Integer> wayPoints) {
     }
 
     private record Geometry(List<List<Double>> coordinates) {

@@ -2,6 +2,7 @@ package com.sogeco.fleet.modules.tracking;
 
 import com.sogeco.fleet.modules.routing.OpenRouteServiceClient;
 import com.sogeco.fleet.modules.tracking.dto.SnappedTrack;
+import com.sogeco.fleet.modules.tracking.dto.SnappedTrack.Anchor;
 import com.sogeco.fleet.modules.tracking.dto.SnappedTrack.Endpoint;
 import com.sogeco.fleet.modules.tracking.dto.SnappedTrack.Kind;
 import com.sogeco.fleet.modules.tracking.dto.SnappedTrack.Segment;
@@ -45,7 +46,7 @@ public class TrackSnapService {
     private final GpsPositionRepository positionRepository;
     private final OpenRouteServiceClient ors;
 
-    private final Map<String, List<double[]>> cache = new ConcurrentHashMap<>();
+    private final Map<String, OpenRouteServiceClient.ThroughRoute> cache = new ConcurrentHashMap<>();
 
     private record P(Instant at, double lat, double lng) {
     }
@@ -105,14 +106,30 @@ public class TrackSnapService {
 
     /** Portion routiere ; repli sur la ligne droite brute (RAW) si ORS est indisponible, en echec ou hors quota. */
     private Segment roadSegment(List<P> chunk, Kind kind, int[] calls) {
-        Optional<List<double[]>> road = route(chunk, calls);
+        Optional<OpenRouteServiceClient.ThroughRoute> road = route(chunk, calls);
         if (road.isPresent()) {
-            return new Segment(kind, road.get());
+            List<double[]> geometry = road.get().geometry();
+            List<Integer> wayPoints = road.get().wayPoints();
+            List<Anchor> anchors = new ArrayList<>();
+            if (wayPoints.size() == chunk.size()) {
+                for (int i = 0; i < chunk.size(); i++) {
+                    anchors.add(new Anchor(wayPoints.get(i), chunk.get(i).at()));
+                }
+            } else {
+                // ORS n'a pas renvoye tous les points : seuls le debut et la fin sont dates
+                anchors.add(new Anchor(0, chunk.get(0).at()));
+                anchors.add(new Anchor(geometry.size() - 1, chunk.get(chunk.size() - 1).at()));
+            }
+            return new Segment(kind, geometry, anchors);
         }
-        return new Segment(Kind.RAW, chunk.stream().map(p -> new double[]{p.lat(), p.lng()}).toList());
+        List<Anchor> anchors = new ArrayList<>();
+        for (int i = 0; i < chunk.size(); i++) {
+            anchors.add(new Anchor(i, chunk.get(i).at()));
+        }
+        return new Segment(Kind.RAW, chunk.stream().map(p -> new double[]{p.lat(), p.lng()}).toList(), anchors);
     }
 
-    private Optional<List<double[]>> route(List<P> chunk, int[] calls) {
+    private Optional<OpenRouteServiceClient.ThroughRoute> route(List<P> chunk, int[] calls) {
         if (!ors.isEnabled()) {
             return Optional.empty();
         }
@@ -122,7 +139,7 @@ public class TrackSnapService {
             waypoints.add(new double[]{p.lat(), p.lng()});
             key.append(String.format(java.util.Locale.ROOT, "%.5f,%.5f;", p.lat(), p.lng()));
         }
-        List<double[]> cached = cache.get(key.toString());
+        OpenRouteServiceClient.ThroughRoute cached = cache.get(key.toString());
         if (cached != null) {
             return Optional.of(cached);
         }
@@ -130,12 +147,12 @@ public class TrackSnapService {
             return Optional.empty();
         }
         calls[0]++;
-        Optional<List<double[]>> road = ors.routeThrough(waypoints);
-        road.ifPresent(geometry -> {
+        Optional<OpenRouteServiceClient.ThroughRoute> road = ors.routeThrough(waypoints);
+        road.ifPresent(through -> {
             if (cache.size() >= CACHE_LIMIT) {
                 cache.clear();
             }
-            cache.put(key.toString(), geometry);
+            cache.put(key.toString(), through);
         });
         return road;
     }

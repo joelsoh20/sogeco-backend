@@ -33,8 +33,12 @@ public record SnappedTrack(
         SNAPPED, ESTIMATED, RAW
     }
 
-    /** points : [latitude, longitude]. */
-    public record Segment(Kind kind, List<double[]> points) {
+    /** points : [latitude, longitude]. anchors : heure de passage a certains indices de points (pour rejouer le trajet). */
+    public record Segment(Kind kind, List<double[]> points, List<Anchor> anchors) {
+    }
+
+    /** Le camion etait a points[index] a l'instant at. */
+    public record Anchor(int index, Instant at) {
     }
 
     public record Endpoint(Instant at, double latitude, double longitude) {

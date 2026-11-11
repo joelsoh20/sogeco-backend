@@ -272,8 +272,10 @@ public class TrackingService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('TRACKING_HISTORY_READ')")
     public TrackHistoryResponse history(Long vehicleId, Instant from, Instant to) {
+        // Releves invalides (fix GPS non valide) exclus : ils feraient sauter le trace et le rejouage.
         return TrackHistoryResponse.of(vehicleId, from, to,
-                positionRepository.findHistory(vehicleId, from, to));
+                positionRepository.findHistory(vehicleId, from, to).stream()
+                        .filter(p -> Boolean.TRUE.equals(p.getValid())).toList());
     }
 
     @Transactional(readOnly = true)
