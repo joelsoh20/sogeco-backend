@@ -111,11 +111,34 @@ public class GeocodingClient {
      * Echec reseau ou aucun resultat : liste vide, jamais d'exception.
      */
     public List<PlaceSuggestion> search(String query) {
-        String q = query == null ? "" : query.trim();
-        if (q.length() < 3) {
+        return search(query, null, null, null, null);
+    }
+
+    /**
+     * Recherche limitee a une ville et/ou une region (mission en ville : le lieu doit etre dans la ville choisie).
+     * La ville est ajoutee a la requete pour orienter Nominatim, puis les resultats sont filtres : la ville resolue
+     * doit etre celle demandee (arrondissements ramenes a la ville), la region aussi si elle est connue du resultat.
+     */
+    public List<PlaceSuggestion> search(String query, String cityFilter, String regionFilter,
+                                        BigDecimal centerLat, BigDecimal centerLng) {
+        String typed = query == null ? "" : query.trim();
+        if (typed.length() < 3) {
             return List.of();
         }
-        String key = q.toLowerCase(java.util.Locale.ROOT);
+        String wantedCity = cityFilter == null || cityFilter.isBlank() ? null : normalize(cityFilter);
+        String wantedRegion = regionFilter == null || regionFilter.isBlank() ? null : normalize(regionFilter);
+        // Centre de la ville connu : recherche bornee a un rayon d'environ 22 km autour (Nominatim viewbox), bien plus
+        // fiable que d'ajouter le nom de la ville au texte, qui laisse passer les homonymes du reste du pays.
+        boolean bounded = wantedCity != null && centerLat != null && centerLng != null;
+        String viewbox = bounded
+                ? "%s,%s,%s,%s".formatted(centerLng.subtract(BigDecimal.valueOf(0.2)).toPlainString(),
+                        centerLat.add(BigDecimal.valueOf(0.2)).toPlainString(),
+                        centerLng.add(BigDecimal.valueOf(0.2)).toPlainString(),
+                        centerLat.subtract(BigDecimal.valueOf(0.2)).toPlainString())
+                : null;
+        String q = wantedCity == null || bounded ? typed : typed + ", " + cityFilter.trim();
+        String key = (q + "|" + (viewbox == null ? "" : viewbox) + "|" + (wantedCity == null ? "" : wantedCity) + "|" + (wantedRegion == null ? "" : wantedRegion))
+                .toLowerCase(java.util.Locale.ROOT);
         CachedSearch cached = searchCache.get(key);
         if (cached != null && System.currentTimeMillis() - cached.at() < SEARCH_CACHE_TTL_MS) {
             return cached.results();
@@ -135,7 +158,9 @@ public class GeocodingClient {
                                 .queryParam("format", "jsonv2")
                                 .queryParam("countrycodes", "cm")
                                 .queryParam("addressdetails", 1)
-                                .queryParam("limit", 8)
+                                .queryParam("limit", wantedCity == null && wantedRegion == null ? 8 : 25)
+                                .queryParamIfPresent("viewbox", java.util.Optional.ofNullable(viewbox))
+                                .queryParamIfPresent("bounded", java.util.Optional.ofNullable(viewbox).map(v -> 1))
                                 .queryParam("accept-language", "fr")
                                 .build())
                         .retrieve()
@@ -154,6 +179,13 @@ public class GeocodingClient {
                 if (city == null) {
                     continue;
                 }
+                if (wantedCity != null && !normalize(city).equals(wantedCity)) {
+                    continue;
+                }
+                if (wantedRegion != null && r.address() != null && r.address().state() != null
+                        && !normalizeRegion(r.address().state()).equals(wantedRegion)) {
+                    continue;
+                }
                 String place = firstNonBlank(r.name(), resolvePlaceFromNominatim(r.address()), city);
                 if (isArrondissementName(place)) {
                     place = city;
@@ -161,6 +193,9 @@ public class GeocodingClient {
                 results.add(new PlaceSuggestion(
                         place.equalsIgnoreCase(city) ? city : place + ", " + city,
                         place, city, r.lat(), r.lon()));
+                if (results.size() >= 8) {
+                    break;
+                }
             }
             searchCache.put(key, new CachedSearch(System.currentTimeMillis(), results));
             return results;
@@ -415,6 +450,17 @@ public class GeocodingClient {
         return matcher.matches() ? matcher.group(1) : null;
     }
 
+    /** Minuscules sans accents : « Yaoundé » et « yaounde » designent la meme ville. */
+    private static String normalize(String value) {
+        return java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** « Region du Littoral » / « Region de l'Ouest » -> « littoral » / « ouest » (le Nord-Ouest reste distinct de l'Ouest). */
+    private static String normalizeRegion(String state) {
+        return normalize(state).replaceFirst("^region (du |de la |de l'|de |d')?", "");
+    }
+
     private record NominatimSearchResult(String name, String category, BigDecimal lat, BigDecimal lon, NominatimAddress address) {
     }
 
@@ -431,7 +477,8 @@ public class GeocodingClient {
             String town,
             String municipality,
             String county,
-            @JsonProperty("state_district") String stateDistrict) {
+            @JsonProperty("state_district") String stateDistrict,
+            String state) {
     }
 
     private static boolean isNotablePlace(ReverseFeature feature) {

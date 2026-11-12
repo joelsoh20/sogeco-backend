@@ -28,8 +28,13 @@ public class GeocodingController {
     @GetMapping("/search")
     @Operation(summary = "Propose des lieux du Cameroun a partir d'un texte saisi (autocompletion)")
     @PreAuthorize("isAuthenticated()")
-    public java.util.List<GeocodingClient.PlaceSuggestion> search(@RequestParam String q) {
-        return geocodingClient.search(q);
+    public java.util.List<GeocodingClient.PlaceSuggestion> search(
+            @RequestParam String q,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) BigDecimal lat,
+            @RequestParam(required = false) BigDecimal lng) {
+        return geocodingClient.search(q, city, region, lat, lng);
     }
 
     @GetMapping("/reverse")
