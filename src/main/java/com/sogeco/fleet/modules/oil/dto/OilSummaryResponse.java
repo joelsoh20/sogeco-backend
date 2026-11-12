@@ -26,7 +26,8 @@ public record OilSummaryResponse(
                            String note) {
     }
 
-    public record Distribution(Long id, LocalDate date, Long vehicleId, String registrationNumber,
-                               String cityName, String recipientName, BigDecimal quantityLiters, String note) {
+    /** vehicleId absent et external vrai : vehicule hors flotte, registrationNumber est alors l'immatriculation saisie. */
+    public record Distribution(Long id, LocalDate date, Long vehicleId, String registrationNumber, boolean external,
+                               Long cityId, String cityName, String recipientName, BigDecimal quantityLiters, String note) {
     }
 }

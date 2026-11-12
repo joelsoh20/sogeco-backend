@@ -152,7 +152,7 @@ public class OilXlsxWriter {
         int first = row;
         for (VehicleTotal v : r.byVehicle()) {
             Row line = sheet.createRow(row++);
-            text(line, 0, v.registrationNumber(), st.cell);
+            text(line, 0, v.registrationNumber() + (v.external() ? " (hors flotte)" : ""), st.cell);
             text(line, 1, v.cityName(), st.cell);
             text(line, 2, v.recipients(), st.cell);
             number(line, 3, BigDecimal.valueOf(v.outputCount()), st.qty);

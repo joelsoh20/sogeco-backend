@@ -16,38 +16,38 @@ public interface OilDistributionRepository extends JpaRepository<OilDistribution
 
     @Query("""
            SELECT COALESCE(SUM(d.quantityLiters), 0) FROM OilDistribution d
-           WHERE (:cityId IS NULL OR d.vehicle.city.id = :cityId)
+           WHERE (:cityId IS NULL OR d.city.id = :cityId)
            """)
     BigDecimal total(@Param("cityId") Long cityId);
 
     @Query("""
            SELECT COALESCE(SUM(d.quantityLiters), 0) FROM OilDistribution d
-           WHERE d.distributionDate < :before AND (:cityId IS NULL OR d.vehicle.city.id = :cityId)
+           WHERE d.distributionDate < :before AND (:cityId IS NULL OR d.city.id = :cityId)
            """)
     BigDecimal totalBefore(@Param("before") LocalDate before, @Param("cityId") Long cityId);
 
     /** Total donne par ville du camion : ville, litres. */
     @Query("""
-           SELECT d.vehicle.city.id, SUM(d.quantityLiters) FROM OilDistribution d
-           WHERE d.vehicle.city IS NOT NULL GROUP BY d.vehicle.city.id
+           SELECT d.city.id, SUM(d.quantityLiters) FROM OilDistribution d
+           GROUP BY d.city.id
            """)
     List<Object[]> totalsByCity();
 
-    @EntityGraph(attributePaths = {"vehicle", "vehicle.city"})
+    @EntityGraph(attributePaths = {"vehicle", "city"})
     @Query("""
-           SELECT d FROM OilDistribution d WHERE (:cityId IS NULL OR d.vehicle.city.id = :cityId)
+           SELECT d FROM OilDistribution d WHERE (:cityId IS NULL OR d.city.id = :cityId)
            ORDER BY d.distributionDate DESC, d.id DESC
            """)
     List<OilDistribution> recent(@Param("cityId") Long cityId, Pageable pageable);
 
-    @EntityGraph(attributePaths = {"vehicle", "vehicle.city"})
+    @EntityGraph(attributePaths = {"vehicle", "city"})
     @Query("""
            SELECT d FROM OilDistribution d
-           WHERE d.distributionDate >= :from AND d.distributionDate <= :to AND d.vehicle.city.id = :cityId
+           WHERE d.distributionDate >= :from AND d.distributionDate <= :to AND d.city.id = :cityId
            ORDER BY d.distributionDate ASC, d.id ASC
            """)
     List<OilDistribution> inPeriod(@Param("from") LocalDate from, @Param("to") LocalDate to, @Param("cityId") Long cityId);
 
-    @EntityGraph(attributePaths = {"vehicle", "vehicle.city"})
+    @EntityGraph(attributePaths = {"vehicle", "city"})
     Optional<OilDistribution> findWithVehicleById(Long id);
 }

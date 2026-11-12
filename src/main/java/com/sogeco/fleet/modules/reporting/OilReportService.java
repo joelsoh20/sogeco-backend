@@ -39,11 +39,11 @@ public class OilReportService {
     public record Purchase(LocalDate date, BigDecimal quantity, String note) {
     }
 
-    public record Output(LocalDate date, String registrationNumber, String recipient, BigDecimal quantity) {
+    public record Output(LocalDate date, String registrationNumber, boolean external, String recipient, BigDecimal quantity) {
     }
 
-    public record VehicleTotal(String registrationNumber, String cityName, String recipients, int outputCount,
-                               BigDecimal quantity) {
+    public record VehicleTotal(String registrationNumber, boolean external, String cityName, String recipients,
+                               int outputCount, BigDecimal quantity) {
     }
 
     /** Le fut d'une ville sur la periode. */
@@ -64,6 +64,11 @@ public class OilReportService {
     }
 
     public record OilReport(LocalDate from, LocalDate to, List<CityOil> cities, List<VehicleTotal> byVehicle) {
+    }
+
+    /** Immatriculation : celle du camion de la flotte, sinon celle saisie pour un vehicule hors flotte. */
+    private static String plate(OilDistribution d) {
+        return d.getVehicle() != null ? d.getVehicle().getRegistrationNumber() : d.getExternalPlate();
     }
 
     /** cityId : ville demandee (ignoree pour un gestionnaire, limite a la sienne) ; null = toutes les villes. */
@@ -95,14 +100,14 @@ public class OilReportService {
                 continue;
             }
             cities.add(new CityOil(city.getId(), city.getName(), opening, purchases,
-                    distributions.stream().map(d -> new Output(d.getDistributionDate(),
-                            d.getVehicle().getRegistrationNumber(), d.getRecipientName(), d.getQuantityLiters())).toList()));
+                    distributions.stream().map(d -> new Output(d.getDistributionDate(), plate(d), d.getVehicle() == null,
+                            d.getRecipientName(), d.getQuantityLiters())).toList()));
 
             Map<String, List<OilDistribution>> byPlate = new LinkedHashMap<>();
             for (OilDistribution d : distributions) {
-                byPlate.computeIfAbsent(d.getVehicle().getRegistrationNumber(), k -> new ArrayList<>()).add(d);
+                byPlate.computeIfAbsent(plate(d), k -> new ArrayList<>()).add(d);
             }
-            byPlate.forEach((plate, list) -> byVehicle.add(new VehicleTotal(plate, city.getName(),
+            byPlate.forEach((plate, list) -> byVehicle.add(new VehicleTotal(plate, list.get(0).getVehicle() == null, city.getName(),
                     list.stream().map(OilDistribution::getRecipientName).filter(n -> n != null && !n.isBlank())
                             .distinct().collect(Collectors.joining(", ")),
                     list.size(),

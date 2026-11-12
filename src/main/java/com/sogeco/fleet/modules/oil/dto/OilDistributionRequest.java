@@ -6,8 +6,14 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record OilDistributionRequest(
-        @NotNull(message = "le camion est obligatoire")
+        /** Camion de la flotte ; vide pour un vehicule hors flotte (alors externalPlate est obligatoire). */
         Long vehicleId,
+
+        @Size(max = 30)
+        String externalPlate,
+
+        /** Ville du stock pour un vehicule hors flotte : imposee a un gestionnaire, a choisir par l'administrateur. */
+        Long cityId,
 
         @NotNull(message = "la date est obligatoire")
         @PastOrPresent(message = "la date ne peut pas etre dans le futur")
