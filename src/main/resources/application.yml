@@ -162,6 +162,14 @@ sogeco:
     # Base-url separee tant que ce n'est pas corrige cote ORS.
     geocode-base-url: ${ORS_GEOCODE_BASE_URL:https://api.openrouteservice.org}
 
+  push:
+    # Cles VAPID des notifications push (navigateur ferme, PWA). Vides : push desactive.
+    # Une paire par environnement, la cle privee ne se versionne jamais. Generation :
+    #   npx web-push generate-vapid-keys
+    public-key: ${VAPID_PUBLIC_KEY:}
+    private-key: ${VAPID_PRIVATE_KEY:}
+    subject: ${VAPID_SUBJECT:mailto:admin@sogeco.cm}
+
   ratelimit:
     # Fenetre fixe d'une minute, par utilisateur authentifie (par IP a defaut,
     # ex. tentatives de connexion). Large marge : 11 camions, une dizaine
