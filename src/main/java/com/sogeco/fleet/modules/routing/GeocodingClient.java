@@ -136,7 +136,10 @@ public class GeocodingClient {
                         centerLng.add(BigDecimal.valueOf(0.2)).toPlainString(),
                         centerLat.subtract(BigDecimal.valueOf(0.2)).toPlainString())
                 : null;
-        String q = wantedCity == null || bounded ? typed : typed + ", " + cityFilter.trim();
+        // Region seule (aucune ville choisie) : le nom de la region oriente la recherche vers elle.
+        String q = wantedCity == null
+                ? (wantedRegion == null ? typed : typed + ", " + regionFilter.trim())
+                : bounded ? typed : typed + ", " + cityFilter.trim();
         String key = (q + "|" + (viewbox == null ? "" : viewbox) + "|" + (wantedCity == null ? "" : wantedCity) + "|" + (wantedRegion == null ? "" : wantedRegion))
                 .toLowerCase(java.util.Locale.ROOT);
         CachedSearch cached = searchCache.get(key);
