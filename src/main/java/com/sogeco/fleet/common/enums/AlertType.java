@@ -18,6 +18,8 @@ public enum AlertType {
     GEOREPERAGE,
     DEMARRAGE_NON_AUTORISE,
     PERTE_SIGNAL,
+    /** Camion en mission immobile trop longtemps hors des points de depart et d arrivee. */
+    ARRET_NON_AUTORISE,
 
     // Analyse differee
     SURCONSOMMATION,
