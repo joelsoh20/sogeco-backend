@@ -68,11 +68,35 @@ public class MissionReportService {
                 .setParameter("from", start).setParameter("to", end).setParameter("cityId", cityId)
                 .getResultList();
 
+        // Points de livraison supplementaires, dans l'ordre de passage, par mission.
+        Map<Long, List<String>> stopsByMission = new java.util.HashMap<>();
+        if (!missions.isEmpty()) {
+            for (Object[] r : em.createQuery("""
+                    SELECT w.mission.id, w.label FROM MissionWaypoint w
+                    WHERE w.mission.id IN :ids ORDER BY w.mission.id, w.sequenceNumber""", Object[].class)
+                    .setParameter("ids", missions.stream().map(Mission::getId).toList()).getResultList()) {
+                stopsByMission.computeIfAbsent((Long) r[0], k -> new ArrayList<>()).add((String) r[1]);
+            }
+        }
+
         Map<Long, List<Mission>> byVehicle = new LinkedHashMap<>();
         for (Mission m : missions) {
             if (allVehicles || vehicleIds.contains(m.getVehicle().getId())) {
                 byVehicle.computeIfAbsent(m.getVehicle().getId(), k -> new ArrayList<>()).add(m);
             }
+        }
+
+        // Reparations de la periode par camion (entretien non annule, hors laverie).
+        Map<Long, BigDecimal> repairs = new java.util.HashMap<>();
+        for (Object[] r : em.createQuery("""
+                SELECT m.vehicle.id, COALESCE(SUM(m.totalCost),0)
+                FROM MaintenanceLog m
+                WHERE m.status <> com.sogeco.fleet.common.enums.MaintenanceStatus.ANNULEE
+                  AND m.category <> com.sogeco.fleet.common.enums.MaintenanceCategory.LAVERIE
+                  AND m.interventionDate >= :from AND m.interventionDate <= :to
+                GROUP BY m.vehicle.id""", Object[].class)
+                .setParameter("from", from).setParameter("to", to).getResultList()) {
+            repairs.put((Long) r[0], (BigDecimal) r[1]);
         }
 
         List<VehicleMissions> sections = new ArrayList<>();
@@ -84,7 +108,7 @@ public class MissionReportService {
 
         for (List<Mission> list : byVehicle.values()) {
             var vehicle = list.get(0).getVehicle();
-            List<MissionLine> lines = list.stream().map(MissionReportService::toLine).toList();
+            List<MissionLine> lines = list.stream().map(m -> toLine(m, stopsByMission.getOrDefault(m.getId(), List.of()))).toList();
             BigDecimal vKm = sum(lines, MissionLine::distanceKm);
             BigDecimal vRevenue = sum(lines, MissionLine::revenue);
             BigDecimal vCost = sum(lines, MissionLine::cost);
@@ -92,7 +116,8 @@ public class MissionReportService {
             sections.add(new VehicleMissions(vehicle.getId(), vehicle.getRegistrationNumber(),
                     ((vehicle.getBrand() == null ? "" : vehicle.getBrand()) + " "
                             + (vehicle.getModel() == null ? "" : vehicle.getModel())).trim(),
-                    lines.size(), vKm, vRevenue, vCost, vMargin, lines));
+                    lines.size(), vKm, vRevenue, vCost, vMargin, lines,
+                    repairs.getOrDefault(vehicle.getId(), BigDecimal.ZERO)));
             count += lines.size();
             km = km.add(vKm);
             revenue = revenue.add(vRevenue);
@@ -105,7 +130,7 @@ public class MissionReportService {
                 count, km, revenue, cost, margin, sections);
     }
 
-    private static MissionLine toLine(Mission m) {
+    private static MissionLine toLine(Mission m, List<String> stops) {
         String origin = firstNonBlank(m.getDepartureAddress(),
                 m.getAgency() == null ? null : m.getAgency().getName(),
                 m.getOriginCity() == null ? null : m.getOriginCity().getName());
@@ -114,7 +139,12 @@ public class MissionReportService {
                 m.getDestinationCity() == null ? null : m.getDestinationCity().getName());
         return new MissionLine(m.getMissionNumber(), m.getActualStart(), m.getActualEnd(),
                 m.getServiceType().getLabel(), origin, destination, m.getDriver().getFullName(),
-                nz(m.getDistanceKm()), nz(m.getRevenueAmount()), nz(m.getTotalCost()), nz(m.getMarginAmount()));
+                nz(m.getDistanceKm()), nz(m.getRevenueAmount()), nz(m.getTotalCost()), nz(m.getMarginAmount()),
+                m.getServiceType().getCode(), nz(m.getCargoWeightKg()), nz(m.getFuelCost()),
+                m.getDestinationCity() == null ? null : m.getDestinationCity().getName(),
+                m.getDestinationAgency() == null || m.getDestinationAgency().getCity() == null
+                        ? null : m.getDestinationAgency().getCity().getName(),
+                stops);
     }
 
     private static BigDecimal sum(List<MissionLine> lines, java.util.function.Function<MissionLine, BigDecimal> f) {

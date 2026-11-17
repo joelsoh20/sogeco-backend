@@ -32,7 +32,8 @@ public record MissionReport(
             BigDecimal totalRevenue,
             BigDecimal totalCost,
             BigDecimal totalMargin,
-            List<MissionLine> missions
+            List<MissionLine> missions,
+            BigDecimal repairCost
     ) {
     }
 
@@ -47,7 +48,13 @@ public record MissionReport(
             BigDecimal distanceKm,
             BigDecimal revenue,
             BigDecimal cost,
-            BigDecimal margin
+            BigDecimal margin,
+            String typeCode,
+            BigDecimal cargoKg,
+            BigDecimal fuelCost,
+            String destinationCity,
+            String destinationAgencyCity,
+            List<String> stops
     ) {
     }
 }

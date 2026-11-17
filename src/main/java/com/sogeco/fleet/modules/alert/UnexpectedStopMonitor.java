@@ -48,6 +48,7 @@ public class UnexpectedStopMonitor {
     private static final int DEFAULT_RADIUS_METERS = 50;
 
     private final MissionRepository missionRepository;
+    private final com.sogeco.fleet.modules.mission.MissionWaypointRepository waypointRepository;
     private final GpsPositionRepository positionRepository;
     private final AlertRuleRepository ruleRepository;
     private final AlertRepository alertRepository;
@@ -99,9 +100,13 @@ public class UnexpectedStopMonitor {
                 continue; // hors ligne (pas de signal != arret) ou deja reparti
             }
 
-            BigDecimal[][] places = {
-                    {depLat(mission), depLng(mission)},
-                    {destLat(mission), destLng(mission)}};
+            // Depart, arrivee, puis les points de livraison supplementaires de la tournee.
+            List<BigDecimal[]> places = new java.util.ArrayList<>(List.of(
+                    new BigDecimal[]{depLat(mission), depLng(mission)},
+                    new BigDecimal[]{destLat(mission), destLng(mission)}));
+            for (var waypoint : waypointRepository.findByMissionIdOrderBySequenceNumberAsc(mission.getId())) {
+                places.add(new BigDecimal[]{waypoint.getLatitude(), waypoint.getLongitude()});
+            }
             boolean known = false;
             double nearest = Double.MAX_VALUE;
             for (BigDecimal[] place : places) {

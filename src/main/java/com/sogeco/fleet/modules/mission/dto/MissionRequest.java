@@ -1,10 +1,12 @@
 package com.sogeco.fleet.modules.mission.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 @Schema(description = "Creation ou modification d'une mission")
 public record MissionRequest(
@@ -62,6 +64,11 @@ public record MissionRequest(
 
         @PositiveOrZero
         @Schema(description = "Indemnite forfaitaire de voyage du chauffeur (nourriture, hebergement...) — surtout pertinent pour un voyage hors ville")
-        BigDecimal missionFeeCost
+        BigDecimal missionFeeCost,
+
+        @Valid
+        @Size(max = 20, message = "20 points supplementaires au plus")
+        @Schema(description = "Points de livraison supplementaires entre le depart et l'arrivee, dans l'ordre de passage (creation uniquement)")
+        List<StopRequest> stops
 ) {
 }

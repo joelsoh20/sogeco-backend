@@ -161,6 +161,30 @@ public class MissionService {
     // Creation et modification
     // ------------------------------------------------------------------
 
+    /**
+     * Points de livraison supplementaires : etapes numerotees dans l'ordre de passage.
+     * Liste absente (null) = ne rien changer ; liste fournie = elle remplace les etapes existantes.
+     */
+    private void replaceStops(Mission mission, java.util.List<StopRequest> stops) {
+        if (stops == null) {
+            return;
+        }
+        if (mission.getId() != null) {
+            waypointRepository.deleteByMissionId(mission.getId());
+            waypointRepository.flush();
+        }
+        int sequence = 1;
+        for (StopRequest stop : stops) {
+            waypointRepository.save(MissionWaypoint.builder()
+                    .mission(mission)
+                    .sequenceNumber(sequence++)
+                    .label(stop.label())
+                    .latitude(stop.latitude())
+                    .longitude(stop.longitude())
+                    .build());
+        }
+    }
+
     @Transactional
     @PreAuthorize("hasAuthority('MISSION_CREATE')")
     public MissionDetailResponse create(MissionRequest request) {
@@ -231,6 +255,8 @@ public class MissionService {
         Mission saved = repository.save(mission);
         log.info("Mission {} creee par {}", saved.getMissionNumber(), SecurityUtils.currentUserEmail());
 
+        replaceStops(saved, request.stops());
+
         return get(saved.getId());
     }
 
@@ -292,6 +318,7 @@ public class MissionService {
         assertNoOverlap(request.vehicleId(), request.driverId(),
                 request.plannedStart(), request.plannedArrival(), id);
 
+        replaceStops(mission, request.stops());
         mission.setVehicle(findVehicle(request.vehicleId()));
         mission.setDriver(findDriver(request.driverId()));
         mission.setOriginCity(resolveCity(request.originCityId()));

@@ -34,7 +34,7 @@ public class ReportController {
     private final VehicleExpenseReportService vehicleExpenseReportService;
     private final VehicleExpensePdfWriter vehicleExpensePdfWriter;
     private final MissionReportService missionReportService;
-    private final MissionReportPdfWriter missionReportPdfWriter;
+    private final MissionXlsxWriter missionXlsxWriter;
     private final OilReportService oilReportService;
     private final OilXlsxWriter oilXlsxWriter;
 
@@ -130,19 +130,19 @@ public class ReportController {
                 .body(pdf);
     }
 
-    @GetMapping("/missions/pdf")
+    @GetMapping("/missions/xlsx")
     @PreAuthorize("hasAuthority('REPORT_EXPORT')")
-    @Operation(summary = "Rapport PDF des missions effectuees par les camions choisis (vehicleIds) ou toute la flotte, sur une periode")
-    public ResponseEntity<byte[]> missionsPdf(
+    @Operation(summary = "Fichier Excel du suivi quotidien de la productivite des camions choisis (vehicleIds) ou de toute la flotte, une feuille par camion")
+    public ResponseEntity<byte[]> missionsXlsx(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) List<Long> vehicleIds) {
-        byte[] pdf = missionReportPdfWriter.write(missionReportService.build(from, to, vehicleIds));
+        byte[] file = missionXlsxWriter.write(missionReportService.build(from, to, vehicleIds));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"missions_%s_%s.pdf\"".formatted(from, to))
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(pdf);
+                        "attachment; filename=\"productivite-camions_%s_%s.xlsx\"".formatted(from, to))
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(file);
     }
 
     @GetMapping("/oil/xlsx")
